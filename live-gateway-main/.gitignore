@@ -1,3 +1,7 @@
+# 依赖包
+node_modules/
+package-lock.json
+
 # 日志文件
 *.log
 
@@ -16,4 +20,8 @@ Thumbs.db
 *.tmp
 *.bak
 *.backup
+
+# 复制的目录（从主项目共享）
+admin/
+data/
 
