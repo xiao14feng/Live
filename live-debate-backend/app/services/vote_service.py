@@ -1,6 +1,7 @@
 """
 投票业务逻辑服务
 """
+import asyncio
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -50,6 +51,7 @@ class VoteService:
         提交100票分配制投票。
         - 记录用户本次投票到 vote_records
         - 累加到 vote_aggregates
+        - 广播投票更新给订阅该直播流的 WebSocket 客户端
         """
         total = left_votes + right_votes
         if total != 100:
@@ -71,7 +73,24 @@ class VoteService:
         db.commit()
         db.refresh(agg)
 
-        return agg.to_dict()
+        result = agg.to_dict()
+
+        # 广播实时更新（非阻塞）
+        self._broadcast_votes(stream_id, result)
+
+        return result
+
+    def _broadcast_votes(self, stream_id: str, vote_data: dict):
+        """异步广播投票更新（在当前事件循环中调度，不阻塞同步代码）"""
+        try:
+            from .websocket_manager import manager
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(
+                    manager.broadcast_votes_update(stream_id, vote_data)
+                )
+        except Exception as e:
+            print(f"[WS] 广播投票更新失败: {e}")
 
     def reset_votes(self, db: Session, stream_id: str = DEFAULT_STREAM_ID) -> dict:
         """重置投票"""
@@ -80,7 +99,9 @@ class VoteService:
         agg.right_votes = 0
         db.commit()
         db.refresh(agg)
-        return agg.to_dict()
+        result = agg.to_dict()
+        self._broadcast_votes(stream_id, result)
+        return result
 
     def set_votes(
         self, db: Session, stream_id: str, left_votes: int, right_votes: int
@@ -91,7 +112,9 @@ class VoteService:
         agg.right_votes = right_votes
         db.commit()
         db.refresh(agg)
-        return agg.to_dict()
+        result = agg.to_dict()
+        self._broadcast_votes(stream_id, result)
+        return result
 
     def get_statistics(self, db: Session, stream_id: Optional[str] = None) -> dict:
         """投票统计"""
@@ -160,7 +183,7 @@ class VoteService:
         left_position: Optional[str] = None,
         right_position: Optional[str] = None,
     ) -> dict:
-        """更新辩题"""
+        """更新辩题，并广播给所有 WebSocket 客户端"""
         debate = self.get_active_debate(db)
         if title is not None:
             debate.title = title
@@ -172,4 +195,17 @@ class VoteService:
             debate.right_position = right_position
         db.commit()
         db.refresh(debate)
-        return debate.to_dict()
+        result = debate.to_dict()
+
+        # 广播辩题更新（非阻塞）
+        try:
+            from .websocket_manager import manager
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(
+                    manager.broadcast_debate_update(result)
+                )
+        except Exception as e:
+            print(f"[WS] 广播辩题更新失败: {e}")
+
+        return result

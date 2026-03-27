@@ -2,17 +2,20 @@
 FastAPI应用主入口
 支持本地开发和Cloudflare Workers部署
 """
-from fastapi import FastAPI, Request
+import json
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 from datetime import datetime
+from typing import Optional
 
 from .config import settings, is_cloudflare_env
 from .api import auth
 from .api import votes
 from .api import debate
 from .database import init_database, create_tables
+from .services.websocket_manager import manager as ws_manager
 
 
 def create_app(env=None) -> FastAPI:
@@ -46,7 +49,81 @@ def create_app(env=None) -> FastAPI:
         if hasattr(env, 'LIVE_ROOM'):
             app.state.websocket = env.LIVE_ROOM
 
-    # 注册路由
+    # ── WebSocket 端点（必须在通配 OPTIONS 之前注册）──
+
+    @app.websocket("/ws")
+    async def websocket_endpoint(
+        ws: WebSocket,
+        stream_id: Optional[str] = Query(None),
+    ):
+        """
+        WebSocket 主入口。
+        连接: ws://host:8000/ws  或  ws://host:8000/ws?stream_id=xxx
+        客户端消息: {"type":"ping"} / {"type":"register","streamId":"xxx"}
+        """
+        await ws_manager.connect(ws, stream_id=stream_id)
+        try:
+            stats = ws_manager.get_stats()
+            await ws.send_text(json.dumps({
+                "type": "connected",
+                "streamId": stream_id,
+                "data": {
+                    "message": "WebSocket 连接成功",
+                    "streamId": stream_id,
+                    "totalConnections": stats["totalConnections"],
+                    "streams": stats["streams"],
+                },
+                "timestamp": datetime.now().isoformat(),
+            }, ensure_ascii=False))
+
+            while True:
+                try:
+                    raw = await ws.receive_text()
+                except Exception:
+                    break
+
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    await ws.send_text(json.dumps({
+                        "type": "error",
+                        "data": {"message": "无效的 JSON 格式"},
+                        "timestamp": datetime.now().isoformat(),
+                    }, ensure_ascii=False))
+                    continue
+
+                msg_type = data.get("type", "")
+
+                if msg_type == "ping":
+                    await ws.send_text(json.dumps({
+                        "type": "pong",
+                        "timestamp": datetime.now().isoformat(),
+                    }, ensure_ascii=False))
+
+                elif msg_type == "register":
+                    new_sid = data.get("streamId") or data.get("stream_id")
+                    if new_sid:
+                        ws_manager.bind_stream(ws, new_sid)
+                        await ws.send_text(json.dumps({
+                            "type": "registered",
+                            "streamId": new_sid,
+                            "data": {"message": f"已订阅直播流 {new_sid}"},
+                            "timestamp": datetime.now().isoformat(),
+                        }, ensure_ascii=False))
+
+                else:
+                    await ws.send_text(json.dumps({
+                        "type": "error",
+                        "data": {"message": f"未知消息类型: {msg_type}"},
+                        "timestamp": datetime.now().isoformat(),
+                    }, ensure_ascii=False))
+
+        except WebSocketDisconnect:
+            pass
+        finally:
+            ws_manager.disconnect(ws)
+
+    # ── REST 路由 ──
     app.include_router(auth.router, prefix=settings.api_prefix, tags=["用户认证"])
     app.include_router(votes.router, prefix=settings.api_prefix, tags=["投票系统"])
     app.include_router(debate.router, prefix=settings.api_prefix, tags=["辩题管理"])
@@ -69,6 +146,11 @@ def create_app(env=None) -> FastAPI:
             "environment": settings.environment,
         }
 
+    @app.get("/ws/stats")
+    async def ws_stats():
+        """WebSocket 连接统计"""
+        return {"success": True, "data": ws_manager.get_stats()}
+
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         return JSONResponse(
@@ -81,6 +163,7 @@ def create_app(env=None) -> FastAPI:
             },
         )
 
+    # 通配 OPTIONS 放在最后，避免拦截 /ws
     @app.options("/{path:path}")
     async def options_handler(request: Request):
         return JSONResponse(
@@ -108,6 +191,7 @@ async def startup_event():
     if not is_cloudflare_env():
         print("[数据库] SQLite (本地开发)")
         print(f"[微信登录] {'Mock模式' if settings.wechat_use_mock else '真实API'}")
+        print("[WebSocket] 已启用 ws://0.0.0.0:8000/ws")
     else:
         print("[运行环境] Cloudflare Workers")
 
