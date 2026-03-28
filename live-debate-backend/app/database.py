@@ -54,6 +54,7 @@ def create_tables():
         from .models.vote import VoteRecord, VoteAggregate
         from .models.debate import Debate
         from .models.stream import Stream
+        from .models.ai_content import AIContent, Comment
         User.metadata.create_all(bind=engine)
 
 
