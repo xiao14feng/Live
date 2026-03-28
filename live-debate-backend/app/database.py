@@ -53,6 +53,7 @@ def create_tables():
         from .models.user import User
         from .models.vote import VoteRecord, VoteAggregate
         from .models.debate import Debate
+        from .models.stream import Stream
         User.metadata.create_all(bind=engine)
 
 
