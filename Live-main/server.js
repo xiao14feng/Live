@@ -186,6 +186,11 @@ app.use(express.json());
 // ==================== 后台管理路由（必须在代理之前） ====================
 const path = require('path');
 
+// 提供主页面（根路由）
+app.get('/', (req, res) => {
+	res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // 提供后台管理页面
 app.get('/admin', (req, res) => {
 	res.sendFile(path.join(__dirname, 'admin', 'index.html'));
@@ -196,6 +201,9 @@ app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
 // 提供静态资源（图标、动画等）
 app.use('/static', express.static(path.join(__dirname, 'static')));
+
+// 提供所有其他静态文件（CSS、JS等）
+app.use(express.static(path.join(__dirname)));
 // ==================== 后台管理路由结束 ====================
 
 // ==================== 优先代理到后端服务器（如果启用） ====================

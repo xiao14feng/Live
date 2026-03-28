@@ -1,20 +1,384 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直播辩论系统 - API测试工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .card p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: background 0.3s;
+            text-decoration: none;
+            text-align: center;
+        }
+        
+        .btn:hover {
+            background: #764ba2;
+        }
+        
+        .btn-secondary {
+            background: #48bb78;
+        }
+        
+        .btn-secondary:hover {
+            background: #38a169;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .status-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .status-item h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+        }
+        
+        .status-value {
+            font-size: 1.3em;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .status-ok {
+            color: #48bb78;
+        }
+        
+        .status-error {
+            color: #f56565;
+        }
+        
+        .test-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .test-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .test-item {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .test-item:last-child {
+            border-bottom: none;
+        }
+        
+        .test-item h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .test-item p {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        
+        .code {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            color: #333;
+            overflow-x: auto;
+        }
+        
+        .response {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+            border-left: 4px solid #667eea;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .response pre {
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            color: #333;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 直播辩论系统</h1>
+            <p>API测试工具 - 前后端集成测试</p>
+        </div>
+        
+        <div class="status-grid">
+            <div class="status-item">
+                <h3>后端API服务</h3>
+                <div class="status-value" id="backend-status">检测中...</div>
+            </div>
+            <div class="status-item">
+                <h3>前端服务器</h3>
+                <div class="status-value status-ok">✓ 运行中</div>
+            </div>
+            <div class="status-item">
+                <h3>WebSocket连接</h3>
+                <div class="status-value" id="ws-status">检测中...</div>
+            </div>
+            <div class="status-item">
+                <h3>数据库</h3>
+                <div class="status-value" id="db-status">检测中...</div>
+            </div>
+        </div>
+        
+        <div class="main-grid">
+            <div class="card">
+                <h2>📖 API文档</h2>
+                <p>查看完整的API接口文档和Swagger UI</p>
+                <a href="http://localhost:8000/docs" target="_blank" class="btn">打开API文档</a>
+            </div>
+            
+            <div class="card">
+                <h2>📊 管理后台</h2>
+                <p>查看直播管理、投票统计等管理功能</p>
+                <a href="/admin" class="btn">打开管理后台</a>
+            </div>
+            
+            <div class="card">
+                <h2>🔄 实时通信</h2>
+                <p>测试WebSocket实时推送功能</p>
+                <button class="btn btn-secondary" onclick="testWebSocket()">测试WebSocket</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🧪 快速API测试</h2>
+            
+            <div class="test-item">
+                <h3>1. 获取辩题</h3>
+                <p>获取当前激活的辩题信息</p>
+                <button class="btn" onclick="testAPI('GET', '/api/debate-topic', null, 'debate-response')">测试</button>
+                <div class="response" id="debate-response" style="display:none;"></div>
+            </div>
+            
+            <div class="test-item">
+                <h3>2. 获取投票数据</h3>
+                <p>获取当前投票统计数据</p>
+                <button class="btn" onclick="testAPI('GET', '/api/votes', null, 'votes-response')">测试</button>
+                <div class="response" id="votes-response" style="display:none;"></div>
+            </div>
+            
+            <div class="test-item">
+                <h3>3. 用户投票</h3>
+                <p>提交一个投票（60票正方，40票反方）</p>
+                <button class="btn" onclick="testAPI('POST', '/api/user-vote', {leftVotes: 60, rightVotes: 40, streamId: 'default'}, 'vote-response')">测试</button>
+                <div class="response" id="vote-response" style="display:none;"></div>
+            </div>
+            
+            <div class="test-item">
+                <h3>4. 获取仪表板数据</h3>
+                <p>获取系统统计数据和仪表板信息</p>
+                <button class="btn" onclick="testAPI('GET', '/api/admin/dashboard', null, 'dashboard-response')">测试</button>
+                <div class="response" id="dashboard-response" style="display:none;"></div>
+            </div>
+            
+            <div class="test-item">
+                <h3>5. 获取用户列表</h3>
+                <p>获取系统中的所有用户</p>
+                <button class="btn" onclick="testAPI('GET', '/api/admin/users', null, 'users-response')">测试</button>
+                <div class="response" id="users-response" style="display:none;"></div>
+            </div>
+            
+            <div class="test-item">
+                <h3>6. 获取AI内容列表</h3>
+                <p>获取AI生成的内容列表</p>
+                <button class="btn" onclick="testAPI('GET', '/api/ai-content', null, 'content-response')">测试</button>
+                <div class="response" id="content-response" style="display:none;"></div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>✨ 直播辩论系统 v1.0.0 | 前后端已完全集成</p>
+            <p>后端: http://localhost:8000 | 前端: http://localhost:8080</p>
+        </div>
+    </div>
+    
     <script>
-      var coverSupport = 'CSS' in window && typeof CSS.supports === 'function' && (CSS.supports('top: env(a)') ||
-        CSS.supports('top: constant(a)'))
-      document.write(
-        '<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0' +
-        (coverSupport ? ', viewport-fit=cover' : '') + '" />')
+        // 检测后端服务状态
+        async function checkBackendStatus() {
+            try {
+                const response = await fetch('http://localhost:8000/health');
+                if (response.ok) {
+                    document.getElementById('backend-status').innerHTML = '<span class="status-ok">✓ 运行中</span>';
+                    document.getElementById('db-status').innerHTML = '<span class="status-ok">✓ 正常</span>';
+                } else {
+                    document.getElementById('backend-status').innerHTML = '<span class="status-error">✗ 错误</span>';
+                }
+            } catch (error) {
+                document.getElementById('backend-status').innerHTML = '<span class="status-error">✗ 离线</span>';
+            }
+        }
+        
+        // 测试WebSocket连接
+        function testWebSocket() {
+            try {
+                const ws = new WebSocket('ws://localhost:8000/ws');
+                ws.onopen = () => {
+                    document.getElementById('ws-status').innerHTML = '<span class="status-ok">✓ 已连接</span>';
+                    ws.send(JSON.stringify({type: 'ping'}));
+                    setTimeout(() => ws.close(), 2000);
+                };
+                ws.onerror = () => {
+                    document.getElementById('ws-status').innerHTML = '<span class="status-error">✗ 连接失败</span>';
+                };
+            } catch (error) {
+                document.getElementById('ws-status').innerHTML = '<span class="status-error">✗ 错误</span>';
+            }
+        }
+        
+        // 测试API
+        async function testAPI(method, endpoint, data, responseId) {
+            const responseDiv = document.getElementById(responseId);
+            responseDiv.style.display = 'block';
+            responseDiv.innerHTML = '<div class="loading"></div> 加载中...';
+            
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+                
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(`http://localhost:8000${endpoint}`, options);
+                const result = await response.json();
+                
+                responseDiv.innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+            } catch (error) {
+                responseDiv.innerHTML = `<pre style="color: red;">错误: ${error.message}</pre>`;
+            }
+        }
+        
+        // 页面加载时检测状态
+        window.addEventListener('load', () => {
+            checkBackendStatus();
+            testWebSocket();
+        });
     </script>
-    <title></title>
-    <!--preload-links-->
-    <!--app-context-->
-  </head>
-  <body>
-    <div id="app"><!--app-html--></div>
-    <script type="module" src="/main.js"></script>
-  </body>
+</body>
 </html>
