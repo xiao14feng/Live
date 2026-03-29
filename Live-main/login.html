@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直播辩论系统 - 用户登录</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .login-header h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .login-header p {
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+        
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        
+        .login-btn.loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .demo-users {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #eee;
+        }
+        
+        .demo-users h3 {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .demo-user-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .demo-user-btn:hover {
+            background: #efefef;
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .demo-user-btn.user {
+            background: #f0f7ff;
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .demo-user-btn.judge {
+            background: #fff5f0;
+            border-color: #ff7a45;
+            color: #ff7a45;
+        }
+        
+        .demo-user-btn.admin {
+            background: #f0fff4;
+            border-color: #48bb78;
+            color: #48bb78;
+        }
+        
+        .error-message {
+            color: #f56565;
+            font-size: 13px;
+            margin-top: 5px;
+            display: none;
+        }
+        
+        .success-message {
+            color: #48bb78;
+            font-size: 13px;
+            margin-top: 5px;
+            display: none;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+        
+        .role-badge.user {
+            background: #e6f2ff;
+            color: #667eea;
+        }
+        
+        .role-badge.judge {
+            background: #ffe6d5;
+            color: #ff7a45;
+        }
+        
+        .role-badge.admin {
+            background: #d5f4e6;
+            color: #48bb78;
+        }
+        
+        .info-box {
+            background: #f0f7ff;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>🎉 直播辩论</h1>
+            <p>欢迎登录系统</p>
+        </div>
+        
+        <div class="info-box">
+            💡 提示：选择下方演示账户快速登录，或输入自定义用户信息
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" placeholder="输入用户名或选择演示账户" required>
+                <div class="error-message" id="usernameError"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="role">用户角色</label>
+                <select id="role" required>
+                    <option value="user">普通用户</option>
+                    <option value="judge">评委</option>
+                    <option value="admin">管理员</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="login-btn" id="loginBtn">登录</button>
+            <div class="error-message" id="loginError"></div>
+            <div class="success-message" id="loginSuccess"></div>
+        </form>
+        
+        <div class="demo-users">
+            <h3>📋 演示账户</h3>
+            <button type="button" class="demo-user-btn user" onclick="quickLogin('Alice', 'user')">
+                👤 Alice <span class="role-badge user">普通用户</span>
+            </button>
+            <button type="button" class="demo-user-btn user" onclick="quickLogin('Bob', 'user')">
+                👤 Bob <span class="role-badge user">普通用户</span>
+            </button>
+            <button type="button" class="demo-user-btn judge" onclick="quickLogin('Judge Chen', 'judge')">
+                ⚖️ Judge Chen <span class="role-badge judge">评委</span>
+            </button>
+            <button type="button" class="demo-user-btn admin" onclick="quickLogin('Admin Zhang', 'admin')">
+                👨‍💼 Admin Zhang <span class="role-badge admin">管理员</span>
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // 快速登录
+        function quickLogin(username, role) {
+            document.getElementById('username').value = username;
+            document.getElementById('role').value = role;
+            performLogin(username, role);
+        }
+        
+        // 执行登录
+        function performLogin(username, role) {
+            const loginBtn = document.getElementById('loginBtn');
+            const loginError = document.getElementById('loginError');
+            const loginSuccess = document.getElementById('loginSuccess');
+            
+            loginBtn.classList.add('loading');
+            loginBtn.disabled = true;
+            loginError.style.display = 'none';
+            loginSuccess.style.display = 'none';
+            
+            // 模拟登录请求
+            setTimeout(() => {
+                try {
+                    // 保存用户信息到localStorage
+                    const userData = {
+                        username: username,
+                        role: role,
+                        loginTime: new Date().toISOString(),
+                        token: 'mock_token_' + Math.random().toString(36).substr(2, 9)
+                    };
+                    
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    
+                    // 显示成功消息
+                    loginSuccess.textContent = `✓ 登录成功！欢迎 ${username}`;
+                    loginSuccess.style.display = 'block';
+                    
+                    // 根据角色跳转到不同页面
+                    setTimeout(() => {
+                        if (role === 'admin') {
+                            window.location.href = '/admin';
+                        } else if (role === 'judge') {
+                            window.location.href = '/admin?role=judge';
+                        } else {
+                            window.location.href = '/';
+                        }
+                    }, 1500);
+                } catch (error) {
+                    loginError.textContent = '登录失败：' + error.message;
+                    loginError.style.display = 'block';
+                    loginBtn.classList.remove('loading');
+                    loginBtn.disabled = false;
+                }
+            }, 800);
+        }
+        
+        // 表单提交
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const role = document.getElementById('role').value;
+            
+            if (!username) {
+                document.getElementById('usernameError').textContent = '请输入用户名';
+                document.getElementById('usernameError').style.display = 'block';
+                return;
+            }
+            
+            performLogin(username, role);
+        });
+        
+        // 页面加载时检查是否已登录
+        window.addEventListener('load', () => {
+            const user = localStorage.getItem('user');
+            if (user) {
+                const userData = JSON.parse(user);
+                document.getElementById('username').value = userData.username;
+                document.getElementById('role').value = userData.role;
+            }
+        });
+    </script>
+</body>
+</html>
