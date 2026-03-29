@@ -19,6 +19,7 @@ from .api import ai_content
 from .api import comments
 from .api import users
 from .api import statistics
+from .api import roles
 from .database import init_database, create_tables
 from .services.websocket_manager import manager as ws_manager
 
@@ -137,6 +138,7 @@ def create_app(env=None) -> FastAPI:
     app.include_router(comments.router, prefix=settings.api_prefix, tags=["评论互动"])
     app.include_router(users.router, prefix=settings.api_prefix, tags=["用户管理"])
     app.include_router(statistics.router, prefix=settings.api_prefix, tags=["统计数据"])
+    app.include_router(roles.router, prefix=settings.api_prefix, tags=["角色管理"])
 
     @app.get("/")
     async def root():

@@ -3,7 +3,6 @@
 支持本地SQLite和Cloudflare D1
 """
 from sqlalchemy import create_engine, event
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 import os
@@ -13,7 +12,6 @@ from .config import get_database_url, is_cloudflare_env
 # 数据库引擎
 engine = None
 SessionLocal = None
-Base = declarative_base()
 
 
 def init_database():
@@ -50,12 +48,16 @@ def init_database():
 def create_tables():
     """创建数据库表"""
     if engine:
+        # 导入user模型的Base（它包含所有其他模型）
+        from .models.user import Base as UserBase
         from .models.user import User
         from .models.vote import VoteRecord, VoteAggregate
         from .models.debate import Debate
         from .models.stream import Stream
         from .models.ai_content import AIContent, Comment
-        User.metadata.create_all(bind=engine)
+        
+        # 使用user.py中的Base来创建所有表
+        UserBase.metadata.create_all(bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:
