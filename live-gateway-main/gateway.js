@@ -6,6 +6,7 @@ const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 const serverCfg = require('./config/server-mode.node.js');
 const { getCurrentServerConfig, printConfig } = serverCfg;
+const BACKEND_BASE_URL = 'http://localhost:8000';
 
 const currentConfig = getCurrentServerConfig();
 const port = currentConfig.port; // 直接使用配置中的端口（mock和非mock模式都已配置为8080）
@@ -105,7 +106,7 @@ function broadcastCurrentState(ws) {
 	if (!ws || ws.readyState !== 1) return;
 	
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		const dashboard = db.statistics.getDashboard();
 		const debate = db.debate.get();
 		
@@ -127,7 +128,7 @@ function broadcastCurrentState(ws) {
 // 处理直播控制
 function handleLiveControl(data) {
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		const { action } = data; // 'start' 或 'stop'
 		
 		if (action === 'start') {
@@ -172,18 +173,32 @@ app.use(express.json());
 
 // ==================== 后台管理路由（必须在代理之前） ====================
 const path = require('path');
+const frontendRoot = path.resolve(__dirname, '..', 'Live-main');
+const frontendAdminDir = path.join(frontendRoot, 'admin');
+const frontendStaticDir = path.join(frontendRoot, 'static');
+
+// 提供主页面（根路由）
+app.get('/', (req, res) => {
+	res.sendFile(path.join(frontendRoot, 'index.html'));
+});
 
 // 提供后台管理页面
 app.get('/admin', (req, res) => {
-	res.sendFile(path.join(__dirname, 'admin', 'index.html'));
+	res.sendFile(path.join(frontendAdminDir, 'index.html'));
 });
 
 // 提供后台管理静态资源
-app.use('/admin', express.static(path.join(__dirname, 'admin')));
+app.use('/admin', express.static(frontendAdminDir));
+
+// 提供静态资源（图标、动画等）
+app.use('/static', express.static(frontendStaticDir));
+
+// 提供所有其他静态文件（CSS、JS等）
+app.use(express.static(frontendRoot));
 // ==================== 后台管理路由结束 ====================
 
 // ==================== 后台管理 API（必须在代理之前） ====================
-const db = require('./admin/db.js');
+const db = require(path.join(frontendAdminDir, 'db.js'));
 
 // 管理API - 直播流管理（完整实现见下方 ==================== 直播流管理接口 ==================== 部分）
 
@@ -219,9 +234,37 @@ app.put('/api/admin/debate', (req, res) => {
 });
 
 // 管理API - 用户管理
-app.get('/api/admin/users', (req, res) => {
+app.get('/api/admin/users', async (req, res) => {
 	try {
-		const users = db.users.getAll();
+		const searchParams = new URLSearchParams();
+		if (req.query.status) searchParams.set('status', req.query.status);
+		if (req.query.skip) searchParams.set('skip', req.query.skip);
+		if (req.query.limit) searchParams.set('limit', req.query.limit);
+
+		const queryString = searchParams.toString();
+		const backendUrl = `${BACKEND_BASE_URL}/api/admin/users${queryString ? `?${queryString}` : ''}`;
+		const response = await fetch(backendUrl);
+		const payload = await response.json();
+
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+
+		const data = payload?.data;
+		const userList = Array.isArray(data) ? data : data?.users;
+		const users = Array.isArray(userList) ? userList.map((user) => ({
+			id: user.id,
+			nickName: user.nickname,
+			avatarUrl: user.avatar_url,
+			createdAt: user.created_at,
+			updatedAt: user.updated_at,
+			totalVotes: user.total_votes,
+			joinedDebates: user.joined_debates,
+			status: user.status,
+			role: user.role || (String(user.openid || '').startsWith('admin_') ? 'admin' : (String(user.openid || '').startsWith('judge_') ? 'judge' : 'user')),
+			openid: user.openid,
+			lastLoginAt: user.last_login_at,
+		})) : [];
 		res.json(users);
 	} catch (error) {
 		console.error('获取用户列表失败:', error);
@@ -229,13 +272,32 @@ app.get('/api/admin/users', (req, res) => {
 	}
 });
 
-app.get('/api/admin/users/:id', (req, res) => {
+app.get('/api/admin/users/:id', async (req, res) => {
 	try {
-		const user = db.users.getById(req.params.id);
+		const response = await fetch(`${BACKEND_BASE_URL}/api/admin/users/${req.params.id}`);
+		const payload = await response.json();
+
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+
+		const user = payload?.data;
 		if (!user) {
 			return res.status(404).json({ error: '用户不存在' });
 		}
-		res.json(user);
+		res.json({
+			id: user.id,
+			nickName: user.nickname,
+			avatarUrl: user.avatar_url,
+			createdAt: user.created_at,
+			updatedAt: user.updated_at,
+			totalVotes: user.total_votes,
+			joinedDebates: user.joined_debates,
+			status: user.status,
+			role: user.role || (String(user.openid || '').startsWith('admin_') ? 'admin' : (String(user.openid || '').startsWith('judge_') ? 'judge' : 'user')),
+			openid: user.openid,
+			lastLoginAt: user.last_login_at,
+		});
 	} catch (error) {
 		console.error('获取用户失败:', error);
 		res.status(500).json({ error: '获取失败' });
@@ -282,7 +344,7 @@ let globalAIStatus = {
 let liveScheduleTimer = null;
 
 function checkLiveSchedule() {
-	const db = require('./admin/db.js');
+	const db = require(path.join(frontendAdminDir, 'db.js'));
 	const schedule = db.liveSchedule.get();
 	const now = Date.now();
 	
@@ -316,7 +378,7 @@ function startScheduleCheck() {
 
 // 启动计划的直播
 function startScheduledLive(schedule) {
-	const db = require('./admin/db.js');
+	const db = require(path.join(frontendAdminDir, 'db.js'));
 	
 	try {
 		let streamUrl = null;
@@ -366,7 +428,7 @@ function stopLive() {
 	globalLiveStatus.streamId = null;
 	
 	// 清除计划
-	const db = require('./admin/db.js');
+	const db = require(path.join(frontendAdminDir, 'db.js'));
 	db.liveSchedule.clear();
 	globalLiveStatus.isScheduled = false;
 	globalLiveStatus.scheduledStartTime = null;
@@ -388,7 +450,7 @@ app.post('/api/admin/live/control', (req, res) => {
 		
 		if (action === 'start') {
 			if (!streamUrl) {
-				const db = require('./admin/db.js');
+				const db = require(path.join(frontendAdminDir, 'db.js'));
 				const activeStream = db.streams.getActive();
 				if (!activeStream) {
 					return res.status(400).json({ error: '没有可用的直播流' });
@@ -425,7 +487,7 @@ app.post('/api/live/control', (req, res) => {
 		const { action, streamId } = req.body;
 		
 		if (action === 'start') {
-			const db = require('./admin/db.js');
+			const db = require(path.join(frontendAdminDir, 'db.js'));
 			let selectedStream = null;
 			
 			// 如果指定了streamId，使用指定的直播流
@@ -513,7 +575,7 @@ app.post('/api/live/control', (req, res) => {
 // 设置直播计划
 app.post('/api/admin/live/schedule', (req, res) => {
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		const { scheduledStartTime, scheduledEndTime, streamId } = req.body;
 		
 		if (!scheduledStartTime) {
@@ -579,7 +641,7 @@ app.post('/api/admin/live/schedule', (req, res) => {
 // 获取直播计划
 app.get('/api/admin/live/schedule', (req, res) => {
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		const schedule = db.liveSchedule.get();
 		res.json({
 			success: true,
@@ -593,7 +655,7 @@ app.get('/api/admin/live/schedule', (req, res) => {
 // 取消直播计划
 app.post('/api/admin/live/schedule/cancel', (req, res) => {
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		db.liveSchedule.clear();
 		
 		globalLiveStatus.isScheduled = false;
@@ -616,7 +678,7 @@ app.post('/api/admin/live/schedule/cancel', (req, res) => {
 
 app.get('/api/admin/live/status', (req, res) => {
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		const schedule = db.liveSchedule.get();
 		
 		// 获取启用的直播流（即使直播未开始，也返回启用的流地址）
@@ -643,7 +705,7 @@ app.get('/api/admin/live/status', (req, res) => {
 // 一次性设置并开始直播（整合API）
 app.post('/api/admin/live/setup-and-start', (req, res) => {
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		const { streamId, scheduledStartTime, scheduledEndTime, startNow } = req.body;
 		
 		// 验证直播流
@@ -1438,7 +1500,7 @@ app.delete('/api/admin/ai-content/:id', (req, res) => {
 // ==================== 统计 API（只读） ====================
 app.get('/api/admin/statistics/summary', (req, res) => {
     try {
-        const db = require('./admin/db.js');
+        const db = require(path.join(frontendAdminDir, 'db.js'));
         const stats = db.statistics.get();
         const users = db.users.getAll();
         const streams = db.streams.getAll();
@@ -1462,7 +1524,7 @@ app.get('/api/admin/statistics/summary', (req, res) => {
 
 app.get('/api/admin/statistics/daily', (req, res) => {
     try {
-        const db = require('./admin/db.js');
+        const db = require(path.join(frontendAdminDir, 'db.js'));
         const stats = db.statistics.get();
         const daily = Array.isArray(stats.dailyStats) ? stats.dailyStats : [];
         res.json({ success: true, data: daily });
@@ -2032,7 +2094,7 @@ app.post('/api/wechat-login', async (req, res) => {
         }
         
         // 保存用户到数据库（在管理系统中显示）
-        const db = require('./admin/db.js');
+        const db = require(path.join(frontendAdminDir, 'db.js'));
         const userId = wechatData.openid; // 使用openid作为用户ID
         if (userId) {
             db.users.createOrUpdate({
@@ -2165,7 +2227,7 @@ app.post('/api/user-vote', (req, res) => {
 
     // 更新数据库统计（如果已加载）
     try {
-        const db = require('./admin/db.js');
+        const db = require(path.join(frontendAdminDir, 'db.js'));
         if (userId) {
             const totalUserVotes = userLeftVotes + userRightVotes;
             db.users.updateStats(userId, { votes: totalUserVotes });
@@ -2224,7 +2286,7 @@ app.post('/api/admin/live/start', (req, res) => {
 		const { streamId, autoStartAI = false, notifyUsers = true } = req.body;
 		
 		// 获取直播流
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		let stream = null;
 		
 		if (streamId) {
@@ -2414,7 +2476,7 @@ app.post('/api/admin/live/stop', (req, res) => {
 		
 		// 保存统计数据到数据库
 		if (saveStatistics && duration > 0) {
-			const db = require('./admin/db.js');
+			const db = require(path.join(frontendAdminDir, 'db.js'));
 			db.statistics.updateDashboard({
 				totalVotes: summary.totalVotes,
 				lastLiveTime: stopTime,
@@ -2809,7 +2871,7 @@ app.delete('/api/admin/ai/content/:contentId', (req, res) => {
 // 3.1 实时数据概览
 app.get('/api/admin/dashboard', (req, res) => {
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		const users = db.users.getAll();
 		const debate = db.debate.get();
 		
@@ -2878,7 +2940,7 @@ app.get('/api/admin/dashboard', (req, res) => {
 // 3.2 用户列表
 app.get('/api/admin/miniprogram/users', (req, res) => {
 	try {
-		const db = require('./admin/db.js');
+		const db = require(path.join(frontendAdminDir, 'db.js'));
 		const users = db.users.getAll();
 		
 		const page = parseInt(req.query.page) || 1;

@@ -1,21 +1,18 @@
 // 后台管理系统主逻辑
 // 服务器配置
 const SERVER_CONFIG = {
-	// 本地开发时使用
-	LOCAL_URL: 'http://localhost:8081',
-	// 中间层服务器地址（已废弃，不再使用）
-	MIDDLEWARE_URL: 'http://192.168.31.249:8081',
-	// 后端服务器地址（真实服务器，直接访问）
-	BACKEND_URL: 'http://192.140.160.119:8000',
+	// 本地开发时统一走网关入口
+	LOCAL_URL: 'http://localhost:8080',
+	// 中间层服务器地址
+	MIDDLEWARE_URL: 'http://localhost:8080',
+	// 后端服务器地址（保留备用）
+	BACKEND_URL: 'http://localhost:8000',
 	// 当前使用的地址（修改这里切换服务器）
 	get BASE_URL() {
-		// 🔧 配置：直接访问真实后端服务器（获取真实数据）
-		return this.BACKEND_URL; // 使用真实后端服务器
+		return this.MIDDLEWARE_URL;
 	},
 	get WEB_SOCKET_URL() {
-		// 🔧 配置：WebSocket 也直接连接到真实后端服务器
-		// 如果真实后端服务器不支持 WebSocket，可以设置为 null 来禁用 WebSocket
-		return this.BACKEND_URL; // 使用真实后端服务器
+		return this.MIDDLEWARE_URL;
 	}
 };
 
@@ -431,7 +428,9 @@ function updateDashboardFromState(data) {
 		updateVotesDisplay(data.votes);
 	}
 	if (data.dashboard) {
-		updateDashboardDisplay(data.dashboard);
+		const dashboardData = { ...data.dashboard };
+		delete dashboardData.totalUsers;
+		updateDashboardDisplay(dashboardData);
 	}
 	if (data.debate) {
 		// 如果当前在辩论设置页面，更新表单
@@ -579,7 +578,7 @@ function updateDashboardDisplay(dashboard) {
 	const activeUsersEl = document.getElementById('active-users');
 	const liveStatusTextEl = document.getElementById('live-status-text');
 	
-	if (totalUsersEl) totalUsersEl.textContent = dashboard.totalUsers || 0;
+	if (totalUsersEl && dashboard.totalUsers !== undefined) totalUsersEl.textContent = dashboard.totalUsers || 0;
 	if (liveStatusEl) {
 		liveStatusEl.innerHTML = dashboard.isLive 
 			? '<span style="color: #27ae60; display: flex; align-items: center; gap: 6px;"><span class="iconfont icon-circle" style="font-size: 14px; color: #27ae60;"></span>直播中</span>' 
@@ -687,6 +686,16 @@ function loadPageData(page) {
 // ==================== 数据概览 ====================
 async function loadDashboard() {
 	try {
+		// 先独立刷新真实用户数，避免被 dashboard/streams 接口失败影响
+		try {
+			const usersResult = await fetchUserList(1, 100, {});
+			if (usersResult && Array.isArray(usersResult.users)) {
+				document.getElementById('total-users').textContent = usersResult.users.length;
+			}
+		} catch (userError) {
+			console.warn('获取真实用户总数失败:', userError);
+		}
+		
 		// 🔧 修复：根据选择的流加载对应的 Dashboard 数据
 		const streamSelect = document.getElementById('stream-select');
 		const selectedStreamId = streamSelect?.value;
@@ -700,11 +709,6 @@ async function loadDashboard() {
 		let data;
 		if (result && result.success === false) {
 			console.error('❌ Dashboard 加载失败:', result.message);
-			// 显示错误提示
-			const errorMsg = result.message || '加载 Dashboard 失败';
-			if (typeof showNotification === 'function') {
-				showNotification(errorMsg, 'error');
-			}
 			return;
 		} else if (result && result.data) {
 			// {success: true, data: {...}} 格式
@@ -725,7 +729,10 @@ async function loadDashboard() {
 			globalState.isLive = data.isLive; // 同时更新 globalState，确保按钮状态正确
 		}
 		
-		document.getElementById('total-users').textContent = data.totalUsers || 0;
+		const totalUsersEl = document.getElementById('total-users');
+		if (totalUsersEl && !totalUsersEl.textContent) {
+			totalUsersEl.textContent = data.totalUsers || 0;
+		}
 		const liveStatusEl = document.getElementById('live-status');
 		if (liveStatusEl) {
 			liveStatusEl.innerHTML = data.isLive 
@@ -1964,8 +1971,19 @@ async function loadUsers() {
 		
 		data.users.forEach(user => {
 			const row = document.createElement('tr');
+			const userId = user.userId || user.id || '';
+			const nickname = user.nickname || user.nickName || '未设置';
+			const joinTime = user.joinTime || user.createdAt || user.created_at || null;
+			const userStatus = user.status || 'offline';
+			const userRole = user.role || 'user';
+			const roleMap = {
+				user: { label: '用户', className: 'role-user' },
+				judge: { label: '评委', className: 'role-judge' },
+				admin: { label: '管理员', className: 'role-admin' }
+			};
+			const roleInfo = roleMap[userRole] || roleMap.user;
 			// 获取头像URL，支持多种字段名
-			const avatarUrl = user.avatar || user.avatarUrl || '';
+			const avatarUrl = user.avatar || user.avatarUrl || user.avatar_url || '';
 			
 			// 占位符URL（使用单引号避免在HTML属性中冲突）
 			const placeholderSvg = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\'%3E%3Crect width=\'40\' height=\'40\' fill=\'%23e0e0e0\'/%3E%3Ctext x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\' fill=\'%23999\' font-size=\'14\'%3E头像%3C/text%3E%3C/svg%3E';
@@ -1982,14 +2000,19 @@ async function loadUsers() {
 			}
 			
 			// 转义userId中的特殊字符，防止XSS和语法错误
-			const safeUserId = (user.userId || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+			const safeUserId = userId.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 			
 			row.innerHTML = `
-				<td>${user.userId ? user.userId.slice(0, 8) + '...' : 'N/A'}</td>
-				<td>${(user.nickname || '未设置').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>
+				<td>${userId ? userId.slice(0, 8) + '...' : 'N/A'}</td>
+				<td>
+					<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+						<span>${String(nickname).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
+						<span class="badge ${roleInfo.className}">${roleInfo.label}</span>
+					</div>
+				</td>
 				<td><img src="${avatarSrc}" class="avatar-img" onerror="this.src='${placeholderSvg}'; this.onerror=null;"></td>
-				<td>${user.joinTime ? new Date(user.joinTime).toLocaleString() : '-'}</td>
-				<td><span class="badge ${user.status === 'online' ? 'success' : 'secondary'}">${user.status === 'online' ? '在线' : '离线'}</span></td>
+				<td>${joinTime ? new Date(joinTime).toLocaleString() : '-'}</td>
+				<td><span class="badge ${userStatus === 'online' || userStatus === 'active' ? 'success' : 'secondary'}">${userStatus === 'online' || userStatus === 'active' ? '在线' : '离线'}</span></td>
 				<td>
 					<button class="btn btn-sm btn-secondary" onclick='viewUser("${safeUserId}")'>查看</button>
 				</td>

@@ -50,8 +50,8 @@ const getCurrentConfig = () => {
 class ApiService {
   constructor() {
     this.config = getCurrentConfig();
-    // 强制使用 API_BASE_URL，确保使用配置文件中的地址
-    this.baseURL = API_BASE_URL || this.config.current || 'http://192.168.31.249:8081';
+    // 强制使用 API_BASE_URL，确保统一走配置文件中的网关入口
+    this.baseURL = API_BASE_URL || this.config.current || 'http://localhost:8080';
     this.timeout = 10000; // 10秒超时
     
     // 调试日志：显示初始化的服务器地址
@@ -67,8 +67,8 @@ class ApiService {
    * @param {string} serverUrl - 新的服务器地址
    */
   updateConfig(serverUrl) {
-    // 如果传入的是空值，使用配置文件中的默认地址
-    this.baseURL = serverUrl || API_BASE_URL || 'http://192.168.31.249:8081';
+    // 如果传入的是空值，使用配置文件中的默认网关地址
+    this.baseURL = serverUrl || API_BASE_URL || 'http://localhost:8080';
     
     // 调试日志
     if (typeof console !== 'undefined') {
@@ -93,7 +93,7 @@ class ApiService {
 
     // 构建完整URL
     // 确保使用最新的 baseURL（如果被 updateConfig 更新过）
-    const baseUrl = this.baseURL || API_BASE_URL || 'http://192.168.31.249:8081';
+    const baseUrl = this.baseURL || API_BASE_URL || 'http://localhost:8080';
     const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
     
     // 调试日志（开发环境）

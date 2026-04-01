@@ -1,10 +1,8 @@
 // config/server-mode.node.js (Node.js后端专用)
 const USE_MOCK_SERVER = false; // 改为 false 使用真实服务器
 const LOCAL_SERVER_URL = 'http://localhost:8080';
-// 部署服务器配置：使用环境变量或默认端口
-const DEPLOY_PORT = process.env.PORT || 8080; // 改为8080端口，与前端保持一致
-const REAL_SERVER_URL = `http://192.140.160.119:${DEPLOY_PORT}`; // 部署服务器地址
-const REAL_SERVER_PORT = DEPLOY_PORT; // 部署服务器端口
+const REAL_SERVER_URL = 'http://192.168.31.249:8080'; // 中间层服务器地址
+const REAL_SERVER_PORT = 8080; // 中间层服务器端口
 // 后端服务器配置（真正的后端服务器地址）
 const BACKEND_SERVER_URL = 'http://localhost:8000'; // 本地Python后端服务器地址
 // 是否优先使用后端服务器（设为 true 时，所有 API 请求会优先代理到后端服务器）

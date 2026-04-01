@@ -21,8 +21,8 @@ const USE_MOCK_SERVER = false; // 使用真实服务器
  * 真实服务器地址
  * 当 USE_MOCK_SERVER = false 时使用
  */
-export const LOCAL_SERVER_URL = 'http://localhost:8000';
-export const MIDDLEWARE_SERVER_URL = 'http://localhost:8000';  // 中间层服务器地址（直接连接 server.js，避免与 nginx 冲突）
+export const LOCAL_SERVER_URL = 'http://localhost:8080';
+export const MIDDLEWARE_SERVER_URL = 'http://localhost:8080';  // 中间层服务器地址
 export const REAL_SERVER_URL = 'http://localhost:8000';  // 真实后端服务器地址
 
 /**
@@ -108,7 +108,7 @@ const printConfig = () => {
 // ==================== 导出配置 ====================
 
 // === 只改这一行即可一键切换全局API ===
-export const API_BASE_URL = LOCAL_SERVER_URL; // 本地调试就用 LOCAL_SERVER_URL (http://localhost:8000)
-// export const API_BASE_URL = MIDDLEWARE_SERVER_URL; // 通过中间层服务器 (http://localhost:8000)
-// export const API_BASE_URL = REAL_SERVER_URL; // 直接连接真实后端服务器 (http://localhost:8000)
+export const API_BASE_URL = MIDDLEWARE_SERVER_URL; // 本地调试统一走网关入口 (http://localhost:8080)
+// export const API_BASE_URL = LOCAL_SERVER_URL; // 使用本地网关地址
+// export const API_BASE_URL = REAL_SERVER_URL; // 直接连接本地后端 (http://localhost:8000)
 

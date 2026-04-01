@@ -1,20 +1,20 @@
 // 后台管理系统API调用模块
 // 本文件包含所有与服务器交互的API函数
 
-// 服务器配置（从admin.js继承）
+// 服务器配置（从 admin.js 继承）
 const getAPIBase = () => {
-	// 优先使用admin.js中的配置
+	// 优先使用 admin.js 中的统一入口配置
 	if (window.SERVER_CONFIG && window.SERVER_CONFIG.BASE_URL) {
 		return window.SERVER_CONFIG.BASE_URL;
 	}
-	// 默认使用真实后端服务器（如果admin.js未加载）
-	return 'http://192.140.160.119:8000';
+	// 默认回退到本地网关入口
+	return 'http://localhost:8080';
 };
 
-// 📋 说明：当前配置
-// - 直接访问真实后端服务器 (http://192.140.160.119:8000)
-// - 使用 /api/v1/admin/* 路径获取真实数据
-// - WebSocket 仍连接到中间层 (http://192.168.31.249:8081)
+// 📋 当前本地开发口径
+// - 统一通过网关入口 (http://localhost:8080)
+// - 管理接口走 /api/v1/admin/*
+// - WebSocket 也通过网关 /ws 建立连接
 
 // ==================== 多直播管理API ====================
 
@@ -500,15 +500,24 @@ async function fetchDashboard(streamId = null) {
  * @returns {Promise<Object|null>}
  */
 async function fetchUserList(page = 1, pageSize = 20, filters = {}) {
+	const skip = Math.max(0, (page - 1) * pageSize);
 	const queryParams = new URLSearchParams({
-		page,
-		pageSize,
+		skip,
+		limit: pageSize,
 		...filters
 	});
 	
-	return await apiRequest(`/api/admin/miniprogram/users?${queryParams}`, {
+	const result = await apiRequest(`/api/admin/users?${queryParams}`, {
 		method: 'GET'
 	});
+	
+	const users = Array.isArray(result) ? result : (result?.users || []);
+	return {
+		users,
+		total: users.length,
+		page,
+		pageSize
+	};
 }
 
 /**
@@ -595,9 +604,18 @@ async function deleteAIContentComment(contentId, commentId, reason = '', notifyU
  * @returns {Promise<Array|null>}
  */
 async function getStreamsList() {
-	return await apiRequest('/api/v1/admin/streams', {
+	let result = await apiRequest('/api/v1/admin/streams', {
 		method: 'GET'
 	});
+	
+	if (!result) {
+		console.warn('⚠️ /api/v1/admin/streams 不可用，回退到 /api/admin/streams');
+		result = await apiRequest('/api/admin/streams', {
+			method: 'GET'
+		});
+	}
+	
+	return result;
 }
 
 // ==================== 观看人数管理接口 ====================
