@@ -25,12 +25,18 @@ class LiveService:
         host_id: Optional[str] = None,
         host_name: Optional[str] = None,
         scheduled_at: Optional[datetime] = None,
+        type: str = "hls",
+        url: Optional[str] = None,
+        enabled: bool = True,
     ) -> Stream:
         """创建直播流"""
         stream = Stream(
             title=title,
             description=description,
             cover_url=cover_url,
+            type=type,
+            url=url,
+            enabled=enabled,
             debate_id=debate_id,
             host_id=host_id,
             host_name=host_name,
@@ -70,6 +76,9 @@ class LiveService:
         cover_url: Optional[str] = None,
         debate_id: Optional[str] = None,
         host_name: Optional[str] = None,
+        type: Optional[str] = None,
+        url: Optional[str] = None,
+        enabled: Optional[bool] = None,
     ) -> Optional[Stream]:
         """更新直播流"""
         stream = self.get_stream(db, stream_id)
@@ -85,6 +94,12 @@ class LiveService:
             stream.debate_id = debate_id
         if host_name is not None:
             stream.host_name = host_name
+        if type is not None:
+            stream.type = type
+        if url is not None:
+            stream.url = url
+        if enabled is not None:
+            stream.enabled = enabled
         db.commit()
         db.refresh(stream)
         return stream

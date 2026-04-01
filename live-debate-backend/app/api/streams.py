@@ -78,13 +78,16 @@ async def create_stream(
     body = await request.json()
     stream = live_service.create_stream(
         db,
-        title=body.get("title", "未命名直播"),
+        title=body.get("title") or body.get("name") or "未命名直播",
         description=body.get("description"),
         cover_url=body.get("coverUrl") or body.get("cover_url"),
         debate_id=body.get("debateId") or body.get("debate_id"),
         host_id=body.get("hostId") or body.get("host_id"),
         host_name=body.get("hostName") or body.get("host_name"),
         scheduled_at=None,
+        type=body.get("type", "hls"),
+        url=body.get("url") or body.get("streamUrl") or body.get("stream_url"),
+        enabled=body.get("enabled", True),
     )
     return {"success": True, "data": stream.to_dict(), "message": "直播流已创建"}
 
@@ -120,11 +123,14 @@ async def update_stream(
     stream = live_service.update_stream(
         db,
         stream_id,
-        title=body.get("title"),
+        title=body.get("title") or body.get("name"),
         description=body.get("description"),
         cover_url=body.get("coverUrl") or body.get("cover_url"),
         debate_id=body.get("debateId") or body.get("debate_id"),
         host_name=body.get("hostName") or body.get("host_name"),
+        type=body.get("type"),
+        url=body.get("url") or body.get("streamUrl") or body.get("stream_url"),
+        enabled=body.get("enabled"),
     )
     if not stream:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="直播流不存在")

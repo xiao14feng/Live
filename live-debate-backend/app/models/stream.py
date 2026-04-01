@@ -17,6 +17,10 @@ class Stream(Base):
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     cover_url = Column(Text, nullable=True)
+    # 前端兼容字段
+    type = Column(String(20), default="hls", nullable=False)
+    url = Column(Text, nullable=True)
+    enabled = Column(Boolean, default=True, nullable=False)
     # 状态: pending / live / ended
     status = Column(String(20), default="pending", nullable=False, index=True)
     # 直播流地址（mock时为空）
@@ -40,9 +44,13 @@ class Stream(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "name": self.title,
             "title": self.title,
             "description": self.description,
             "coverUrl": self.cover_url,
+            "type": self.type,
+            "url": self.url,
+            "enabled": self.enabled,
             "status": self.status,
             "isLive": self.status == "live",
             "streamUrl": self.stream_url,
