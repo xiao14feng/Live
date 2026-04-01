@@ -241,6 +241,10 @@ app.get('/api/v1/admin/streams', async (req, res) => {
 
 app.post('/api/admin/streams', async (req, res) => {
 	try {
+		const role = String(req.headers['x-user-role'] || req.query.role || req.body.role || '').toLowerCase();
+		if (role && role !== 'admin') {
+			return res.status(403).json({ success: false, error: '只有管理员可以创建直播间' });
+		}
 		const response = await fetch(`${BACKEND_BASE_URL}/api/admin/streams`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -271,6 +275,10 @@ app.post('/api/admin/streams', async (req, res) => {
 
 app.post('/api/v1/admin/streams', async (req, res) => {
 	try {
+		const role = String(req.headers['x-user-role'] || req.query.role || req.body.role || '').toLowerCase();
+		if (role && role !== 'admin') {
+			return res.status(403).json({ success: false, error: '只有管理员可以创建直播间' });
+		}
 		const response = await fetch(`${BACKEND_BASE_URL}/api/admin/streams`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

@@ -238,6 +238,11 @@ function renderStreamsTable(streams) {
  * 打开添加直播流弹窗
  */
 function openAddStreamModal() {
+	if (window.getCurrentAdminRole && window.getCurrentAdminRole() !== 'admin') {
+		showToast('只有管理员可以创建直播间', 'error');
+		return;
+	}
+
 	const modal = document.getElementById('stream-modal');
 	const title = document.getElementById('stream-modal-title');
 	const form = document.getElementById('stream-form');
@@ -334,6 +339,11 @@ function closeStreamModal() {
 async function handleStreamFormSubmit(e) {
 	e.preventDefault();
 	e.stopPropagation(); // 阻止事件冒泡，防止重复触发
+
+	if (window.getCurrentAdminRole && window.getCurrentAdminRole() !== 'admin') {
+		showToast('只有管理员可以创建或编辑直播间', 'error');
+		return;
+	}
 	
 	// 🔧 修复：防重复提交 - 如果正在提交，直接返回
 	if (window.streamFormSubmitting) {

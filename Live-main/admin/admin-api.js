@@ -113,6 +113,18 @@ async function apiRequest(endpoint, options = {}) {
 		...options.headers
 	};
 	
+	try {
+		const currentUser = localStorage.getItem('user');
+		if (currentUser) {
+			const parsedUser = JSON.parse(currentUser);
+			if (parsedUser?.role) {
+				headers['X-User-Role'] = parsedUser.role;
+			}
+		}
+	} catch (error) {
+		console.warn('读取当前用户角色失败:', error);
+	}
+	
 	// 如果是v1接口，添加认证token（如果存在）
 	if (endpoint.startsWith('/api/v1/')) {
 		const token = getAuthToken();

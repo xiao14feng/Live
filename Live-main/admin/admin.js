@@ -19,6 +19,49 @@ const SERVER_CONFIG = {
 // 将配置挂载到 window 对象，供其他脚本使用
 window.SERVER_CONFIG = SERVER_CONFIG;
 
+function getCurrentAdminUser() {
+	try {
+		const raw = localStorage.getItem('user');
+		return raw ? JSON.parse(raw) : null;
+	} catch (error) {
+		console.warn('读取当前登录用户失败:', error);
+		return null;
+	}
+}
+
+function getCurrentAdminRole() {
+	const roleFromQuery = new URLSearchParams(window.location.search).get('role');
+	if (roleFromQuery) return roleFromQuery;
+	return getCurrentAdminUser()?.role || 'admin';
+}
+
+window.getCurrentAdminUser = getCurrentAdminUser;
+window.getCurrentAdminRole = getCurrentAdminRole;
+
+function formatAdminRole(role) {
+	const normalizedRole = String(role || '').toLowerCase();
+	if (normalizedRole === 'admin') return '管理员';
+	if (normalizedRole === 'judge') return '评委';
+	if (normalizedRole === 'user') return '普通用户';
+	return '未知身份';
+}
+
+function updateCurrentUserBadge() {
+	const user = getCurrentAdminUser();
+	const nameEl = document.getElementById('current-user-name');
+	const roleEl = document.getElementById('current-user-role');
+	if (!nameEl || !roleEl) return;
+	nameEl.textContent = user?.username || '未登录';
+	roleEl.textContent = formatAdminRole(user?.role);
+}
+
+function logoutAdmin() {
+	localStorage.removeItem('user');
+	window.location.replace('/login.html');
+}
+
+window.logoutAdmin = logoutAdmin;
+
 // API_BASE只保留基础URL，具体路径在各个API函数中定义
 const API_BASE = `${SERVER_CONFIG.BASE_URL}/api/admin`;
 
@@ -51,6 +94,12 @@ let wsReconnectTimer = null;
 
 // 页面导航
 document.addEventListener('DOMContentLoaded', async () => {
+	updateCurrentUserBadge();
+	const logoutBtn = document.getElementById('logout-btn');
+	if (logoutBtn) {
+		logoutBtn.addEventListener('click', logoutAdmin);
+	}
+
 	initNavigation();
 	
 	// 🔧 修复：先加载流列表，再加载 Dashboard（因为后端现在要求必须传递 stream_id）
@@ -600,6 +649,32 @@ function initNavigation() {
 	const navItems = document.querySelectorAll('.nav-item');
 	const pages = document.querySelectorAll('.page');
 	const pageTitle = document.querySelector('.page-title');
+	const currentRole = getCurrentAdminRole();
+	const judgeOnlyPage = 'debate-flow';
+	const pageTitles = {
+		'dashboard': '数据概览',
+		'live-setup': '直播设置',
+		'users': '用户管理',
+		'votes': '票数管理',
+		'judges': '评委管理',
+		'debate-flow': '辩论流程',
+		'stream-manage': '直播流管理',
+		'ai-content': 'AI 内容管理',
+		'statistics': '数据统计'
+	};
+
+	if (currentRole === 'judge') {
+		navItems.forEach(item => {
+			const targetPage = item.getAttribute('data-page');
+			const shouldShow = targetPage === judgeOnlyPage;
+			item.style.display = shouldShow ? '' : 'none';
+			item.classList.toggle('active', shouldShow);
+		});
+		pages.forEach(page => page.classList.toggle('active', page.id === judgeOnlyPage));
+		if (pageTitle) pageTitle.textContent = pageTitles[judgeOnlyPage];
+		loadPageData(judgeOnlyPage);
+		return;
+	}
 
 	navItems.forEach(item => {
 		item.addEventListener('click', (e) => {
@@ -615,15 +690,7 @@ function initNavigation() {
 			document.getElementById(targetPage).classList.add('active');
 			
 			// 更新标题
-			const titles = {
-				'dashboard': '数据概览',
-				'live-setup': '直播设置',
-				'users': '用户管理',
-				'votes': '票数管理',
-				'ai-content': 'AI 内容管理',
-				'statistics': '数据统计'
-			};
-			pageTitle.textContent = titles[targetPage] || '管理后台';
+			pageTitle.textContent = pageTitles[targetPage] || '管理后台';
 			
 			// 加载对应页面数据
 			loadPageData(targetPage);
