@@ -729,6 +729,16 @@ function loadPageData(page) {
 				document.getElementById('votes-container') && (document.getElementById('votes-container').innerHTML = '<div style="color: #FF9800; padding: 40px 0; text-align: center;">直播未开始，无需实时监控票数～</div>');
 			}
 			break;
+		case 'judges':
+			if (typeof loadStreamsForJudges === 'function') {
+				loadStreamsForJudges();
+			}
+			break;
+		case 'debate-flow':
+			if (typeof initDebateFlowEvents === 'function') {
+				initDebateFlowEvents();
+			}
+			break;
 		case 'stream-manage':
 			loadStreamsList();
 			break;

@@ -648,6 +648,9 @@ async function getViewersCount(streamId) {
 	const result = await apiRequest(`/api/v1/admin/live/viewers?stream_id=${streamId}`, {
 		method: 'GET'
 	});
+	if (!result) {
+		return null;
+	}
 	
 	console.log(`👥 [getViewersCount] 流 ${streamId} 的观看人数:`, result?.data?.viewers || 0);
 	
@@ -664,6 +667,9 @@ async function getAllViewersCount() {
 	const result = await apiRequest('/api/v1/admin/live/viewers', {
 		method: 'GET'
 	});
+	if (!result) {
+		return null;
+	}
 	
 	if (result?.data?.streams) {
 		const total = Object.values(result.data.streams).reduce((sum, count) => sum + count, 0);

@@ -7,24 +7,27 @@ let currentJudgeIndex = null; // 当前正在编辑的评委索引
 let currentStreamId = null; // 当前选中的直播流ID
 let judgesData = [
 	{
-		id: 'judge-1',
-		name: '评委一',
-		role: '主评委',
-		avatar: './assets/images/judges/osmanthus.jpg',
+		id: 'judge-slot-1',
+		userId: null,
+		name: '待选择评委',
+		role: '评委',
+		avatar: '',
 		votes: 0
 	},
 	{
-		id: 'judge-2',
-		name: '评委二',
-		role: '嘉宾评委',
-		avatar: './assets/images/judges/osmanthus.jpg',
+		id: 'judge-slot-2',
+		userId: null,
+		name: '待选择评委',
+		role: '评委',
+		avatar: '',
 		votes: 0
 	},
 	{
-		id: 'judge-3',
-		name: '评委三',
-		role: '嘉宾评委',
-		avatar: './assets/images/judges/osmanthus.jpg',
+		id: 'judge-slot-3',
+		userId: null,
+		name: '待选择评委',
+		role: '评委',
+		avatar: '',
 		votes: 0
 	}
 ];
@@ -38,84 +41,118 @@ function initJudgesManagement() {
 	// 加载直播流列表
 	loadStreamsForJudges();
 
+	// 先把界面收成“只从用户选择”的模式
+	prepareJudgeCardsForSelectionMode();
+	updateJudgesUI();
+
 	// 绑定直播流选择事件
 	const streamSelect = document.getElementById('judges-stream-select');
-	if (streamSelect) {
+	if (streamSelect && !streamSelect.dataset.bound) {
 		streamSelect.addEventListener('change', handleStreamChange);
+		streamSelect.dataset.bound = 'true';
 	}
 
 	// 刷新直播流列表按钮
 	const refreshBtn = document.getElementById('judges-refresh-streams-btn');
-	if (refreshBtn) {
+	if (refreshBtn && !refreshBtn.dataset.bound) {
 		refreshBtn.addEventListener('click', loadStreamsForJudges);
+		refreshBtn.dataset.bound = 'true';
 	}
 
-	// 绑定所有上传头像按钮
-	document.querySelectorAll('.upload-avatar-btn').forEach((btn, index) => {
-		btn.addEventListener('click', () => {
-			const card = btn.closest('.judge-edit-card');
-			const fileInput = card.querySelector('.judge-avatar-upload');
-			fileInput.click();
-		});
-	});
-
-	// 绑定文件输入变化事件
-	document.querySelectorAll('.judge-avatar-upload').forEach((input, index) => {
-		input.addEventListener('change', (e) => handleAvatarUpload(e, index));
-	});
-
-	// 绑定"从用户选择"按钮
+	// 绑定“从评委用户选择”按钮
 	document.querySelectorAll('.select-from-users-btn').forEach((btn, index) => {
-		btn.addEventListener('click', () => openUserSelectionModal(index));
+		if (!btn.dataset.bound) {
+			btn.textContent = '从评委用户选择';
+			btn.addEventListener('click', () => openUserSelectionModal(index));
+			btn.dataset.bound = 'true';
+		}
 	});
 
-	// 绑定头像预览hover效果
-	document.querySelectorAll('.judge-avatar-preview').forEach((preview, index) => {
+	// 头像区只做 hover 提示，不再触发上传
+	document.querySelectorAll('.judge-avatar-preview').forEach((preview) => {
 		const overlay = preview.querySelector('.avatar-overlay');
-		preview.addEventListener('mouseenter', () => {
-			overlay.style.display = 'flex';
-		});
-		preview.addEventListener('mouseleave', () => {
-			overlay.style.display = 'none';
-		});
-		preview.addEventListener('click', () => {
-			const card = preview.closest('.judge-edit-card');
-			const fileInput = card.querySelector('.judge-avatar-upload');
-			fileInput.click();
-		});
+		if (!preview.dataset.bound) {
+			preview.addEventListener('mouseenter', () => {
+				if (overlay) overlay.style.display = 'flex';
+			});
+			preview.addEventListener('mouseleave', () => {
+				if (overlay) overlay.style.display = 'none';
+			});
+			preview.dataset.bound = 'true';
+		}
 	});
 
 	// 绑定保存按钮
 	const saveBtn = document.getElementById('save-judges-btn');
-	if (saveBtn) {
+	if (saveBtn && !saveBtn.dataset.bound) {
 		saveBtn.addEventListener('click', saveJudgesData);
+		saveBtn.dataset.bound = 'true';
 	}
 
 	// 关闭弹窗按钮
 	const closeModalBtn = document.getElementById('close-user-modal');
-	if (closeModalBtn) {
+	if (closeModalBtn && !closeModalBtn.dataset.bound) {
 		closeModalBtn.addEventListener('click', closeUserSelectionModal);
+		closeModalBtn.dataset.bound = 'true';
 	}
 
 	// 点击弹窗背景关闭
 	const modal = document.getElementById('select-user-modal');
-	if (modal) {
+	if (modal && !modal.dataset.bound) {
 		modal.addEventListener('click', (e) => {
 			if (e.target === modal) {
 				closeUserSelectionModal();
 			}
 		});
+		modal.dataset.bound = 'true';
 	}
 
 	// 用户搜索
 	const userSearch = document.getElementById('modal-user-search');
-	if (userSearch) {
+	if (userSearch && !userSearch.dataset.bound) {
 		userSearch.addEventListener('input', (e) => {
 			filterUsers(e.target.value);
 		});
+		userSearch.dataset.bound = 'true';
 	}
 
 	console.log('✅ 评委管理模块初始化完成');
+}
+
+function prepareJudgeCardsForSelectionMode() {
+	document.querySelectorAll('.judge-edit-card').forEach((card, index) => {
+		const titleEl = card.querySelector('h4');
+		const nameInput = card.querySelector('.judge-name-input');
+		const roleInput = card.querySelector('.judge-role-input');
+		const uploadBtn = card.querySelector('.upload-avatar-btn');
+		const fileInput = card.querySelector('.judge-avatar-upload');
+		const avatarPreview = card.querySelector('.judge-avatar-preview');
+		const overlay = card.querySelector('.avatar-overlay');
+
+		if (titleEl) titleEl.textContent = `评委席位 ${index + 1}`;
+		if (nameInput) {
+			nameInput.readOnly = true;
+			nameInput.placeholder = '请从评委用户中选择';
+			nameInput.style.background = '#eef2f7';
+		}
+		if (roleInput) {
+			roleInput.readOnly = true;
+			roleInput.value = '评委';
+			roleInput.style.background = '#eef2f7';
+		}
+		if (uploadBtn) {
+			uploadBtn.style.display = 'none';
+		}
+		if (fileInput) {
+			fileInput.disabled = true;
+		}
+		if (avatarPreview) {
+			avatarPreview.style.cursor = 'default';
+		}
+		if (overlay) {
+			overlay.textContent = '从用户选择';
+		}
+	});
 }
 
 /**
@@ -123,26 +160,31 @@ function initJudgesManagement() {
  */
 async function loadStreamsForJudges() {
 	try {
-		const response = await fetch(`${getAPIBase()}/api/v1/admin/streams`);
-		const result = await response.json();
+		const result = await getStreamsList();
+		let streams = [];
+		if (Array.isArray(result)) {
+			streams = result;
+		} else if (result?.streams) {
+			streams = result.streams;
+		} else if (result?.data?.streams) {
+			streams = result.data.streams;
+		} else if (result?.data && Array.isArray(result.data)) {
+			streams = result.data;
+		}
 
-		const streams = result?.data?.streams || result?.streams || [];
 		const select = document.getElementById('judges-stream-select');
-
 		if (!select) return;
 
 		select.innerHTML = '<option value="">请选择要管理的直播流</option>';
 
-		streams.forEach(stream => {
-			if (stream.enabled) {
-				const option = document.createElement('option');
-				option.value = stream.id;
-				option.textContent = `${stream.name} (${stream.type?.toUpperCase() || 'HLS'})`;
-				select.appendChild(option);
-			}
+		streams.filter(stream => stream.enabled).forEach(stream => {
+			const option = document.createElement('option');
+			option.value = stream.id;
+			option.textContent = `${stream.name} (${(stream.type || 'hls').toUpperCase()})`;
+			select.appendChild(option);
 		});
 
-		console.log('✅ 加载直播流列表成功');
+		console.log('✅ 评委管理直播流列表加载成功，共', streams.length, '个');
 	} catch (error) {
 		console.error('❌ 加载直播流列表失败:', error);
 		showNotification('加载直播流列表失败', 'error');
@@ -160,7 +202,6 @@ function handleStreamChange(e) {
 	const selectedOption = select.options[select.selectedIndex];
 	const streamName = selectedOption ? selectedOption.textContent : '-';
 
-	// 显示当前管理的流信息
 	const infoDiv = document.getElementById('judges-current-stream-info');
 	const nameSpan = document.getElementById('judges-current-stream-name');
 
@@ -171,7 +212,6 @@ function handleStreamChange(e) {
 		infoDiv.style.display = 'none';
 	}
 
-	// 加载该流的评委数据
 	if (streamId) {
 		loadJudgesDataForStream(streamId);
 	}
@@ -187,8 +227,8 @@ async function loadJudgesDataForStream(streamId) {
 		// const result = await response.json();
 		// judgesData = result.data || judgesData;
 
-		// 暂时使用默认数据
-		console.log('📝 加载评委数据 (使用默认数据)');
+		console.log('📝 加载评委数据 (当前使用本地数据)');
+		prepareJudgeCardsForSelectionMode();
 		updateJudgesUI();
 	} catch (error) {
 		console.error('❌ 加载评委数据失败:', error);
@@ -201,63 +241,21 @@ async function loadJudgesDataForStream(streamId) {
  */
 function updateJudgesUI() {
 	document.querySelectorAll('.judge-edit-card').forEach((card, index) => {
-		if (judgesData[index]) {
-			const judge = judgesData[index];
-			const nameInput = card.querySelector('.judge-name-input');
-			const roleInput = card.querySelector('.judge-role-input');
-			const votesInput = card.querySelector('.judge-votes-input');
-			const avatarPreview = card.querySelector('.judge-avatar-preview');
+		const judge = judgesData[index];
+		if (!judge) return;
 
-			if (nameInput) nameInput.value = judge.name;
-			if (roleInput) roleInput.value = judge.role;
-			if (votesInput) votesInput.value = judge.votes || 0;
-			if (avatarPreview && judge.avatar) {
-				avatarPreview.style.backgroundImage = `url('${judge.avatar}')`;
-			}
+		const nameInput = card.querySelector('.judge-name-input');
+		const roleInput = card.querySelector('.judge-role-input');
+		const votesInput = card.querySelector('.judge-votes-input');
+		const avatarPreview = card.querySelector('.judge-avatar-preview');
+
+		if (nameInput) nameInput.value = judge.name || '待选择评委';
+		if (roleInput) roleInput.value = '评委';
+		if (votesInput) votesInput.value = judge.votes || 0;
+		if (avatarPreview) {
+			avatarPreview.style.backgroundImage = judge.avatar ? `url('${judge.avatar}')` : 'none';
 		}
 	});
-}
-
-/**
- * 处理头像上传
- */
-function handleAvatarUpload(event, judgeIndex) {
-	const file = event.target.files[0];
-	if (!file) return;
-
-	// 验证文件类型
-	if (!file.type.startsWith('image/')) {
-		showNotification('请选择图片文件', 'error');
-		return;
-	}
-
-	// 验证文件大小 (最大2MB)
-	if (file.size > 2 * 1024 * 1024) {
-		showNotification('图片大小不能超过2MB', 'error');
-		return;
-	}
-
-	// 读取并预览图片
-	const reader = new FileReader();
-	reader.onload = (e) => {
-		const imageUrl = e.target.result;
-
-		// 更新预览
-		const card = document.querySelectorAll('.judge-edit-card')[judgeIndex];
-		const preview = card.querySelector('.judge-avatar-preview');
-		if (preview) {
-			preview.style.backgroundImage = `url('${imageUrl}')`;
-		}
-
-		// 更新数据
-		if (judgesData[judgeIndex]) {
-			judgesData[judgeIndex].avatar = imageUrl;
-		}
-
-		showNotification('头像上传成功', 'success');
-	};
-
-	reader.readAsDataURL(file);
 }
 
 /**
@@ -269,8 +267,6 @@ async function openUserSelectionModal(judgeIndex) {
 	const modal = document.getElementById('select-user-modal');
 	if (modal) {
 		modal.style.display = 'flex';
-
-		// 加载用户列表
 		await loadUsersForSelection();
 	}
 }
@@ -291,10 +287,8 @@ function closeUserSelectionModal() {
  */
 async function loadUsersForSelection() {
 	try {
-		const response = await fetch(`${getAPIBase()}/api/v1/admin/users`);
-		const result = await response.json();
-
-		const users = result?.data?.users || result?.users || [];
+		const result = await fetchUserList(1, 100, {});
+		const users = (result?.users || []).filter(user => String(user.role || '').toLowerCase() === 'judge');
 		renderUsersList(users);
 	} catch (error) {
 		console.error('❌ 加载用户列表失败:', error);
@@ -313,47 +307,69 @@ function renderUsersList(users) {
 	if (!listDiv) return;
 
 	if (!users || users.length === 0) {
-		listDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">暂无用户数据</div>';
+		listDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">暂无评委用户数据</div>';
 		return;
 	}
 
-	listDiv.innerHTML = users.map(user => `
-		<div class="user-select-item" data-user-id="${user.id}" style="display: flex; align-items: center; padding: 12px; border: 1px solid #e9ecef; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s;">
-			<img src="${user.avatarUrl || '/static/default-avatar.png'}" alt="${user.nickname}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-right: 15px;">
-			<div style="flex: 1;">
-				<div style="font-weight: 600; color: #2c3e50; margin-bottom: 4px;">${user.nickname}</div>
-				<div style="font-size: 12px; color: #95a5a6;">ID: ${user.id}</div>
+	listDiv.innerHTML = `
+		<div style="border: 1px solid #e9ecef; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);">
+			<div style="display: grid; grid-template-columns: 80px 1.4fr 1.6fr 0.8fr 110px; gap: 0; padding: 14px 16px; background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%); border-bottom: 1px solid #dbe7f3; font-size: 13px; font-weight: 700; color: #486581;">
+				<div>头像</div>
+				<div>昵称</div>
+				<div>用户 ID</div>
+				<div>角色</div>
+				<div style="text-align: center;">操作</div>
 			</div>
-			<button class="btn btn-sm btn-primary select-this-user-btn" style="padding: 6px 16px;">
-				选择
-			</button>
+			<div>
+				${users.map(user => {
+					const userId = user.userId || user.id || '';
+					const nickname = user.nickname || user.nickName || user.name || '未命名评委';
+					const avatar = user.avatarUrl || user.avatar || '/static/default-avatar.png';
+					const role = String(user.role || 'judge').toLowerCase();
+					return `
+						<div class="user-select-item" data-user-id="${userId}" style="display: grid; grid-template-columns: 80px 1.4fr 1.6fr 0.8fr 110px; align-items: center; gap: 0; padding: 14px 16px; border-bottom: 1px solid #eef2f7; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease;">
+							<div>
+								<img src="${avatar}" alt="${nickname}" style="width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid #e9eef5; background: #f8fafc;">
+							</div>
+							<div style="font-weight: 600; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px;">${nickname}</div>
+							<div style="font-size: 12px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px;">${userId}</div>
+							<div>
+								<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: #e0f2fe; color: #0369a1; font-size: 12px; font-weight: 700;">${role}</span>
+							</div>
+							<div style="text-align: center;">
+								<button class="btn btn-sm btn-primary select-this-user-btn" style="padding: 6px 14px; min-width: 72px;">选择</button>
+							</div>
+						</div>
+					`;
+				}).join('')}
+			</div>
 		</div>
-	`).join('');
+	`;
 
-	// 绑定选择按钮事件
 	listDiv.querySelectorAll('.select-this-user-btn').forEach(btn => {
 		btn.addEventListener('click', (e) => {
 			e.stopPropagation();
 			const item = btn.closest('.user-select-item');
 			const userId = item.dataset.userId;
-			const user = users.find(u => u.id === userId);
+			const user = users.find(u => String(u.userId || u.id || '') === String(userId));
 			if (user) {
 				selectUserAsJudge(user);
 			}
 		});
 	});
 
-	// 点击整行也可以选择
 	listDiv.querySelectorAll('.user-select-item').forEach(item => {
 		item.addEventListener('mouseenter', () => {
-			item.style.background = '#f8f9fa';
+			item.style.background = '#f8fbff';
+			item.style.transform = 'translateX(2px)';
 		});
 		item.addEventListener('mouseleave', () => {
 			item.style.background = 'transparent';
+			item.style.transform = 'translateX(0)';
 		});
 		item.addEventListener('click', () => {
 			const userId = item.dataset.userId;
-			const user = users.find(u => u.id === userId);
+			const user = users.find(u => String(u.userId || u.id || '') === String(userId));
 			if (user) {
 				selectUserAsJudge(user);
 			}
@@ -367,28 +383,22 @@ function renderUsersList(users) {
 function selectUserAsJudge(user) {
 	if (currentJudgeIndex === null) return;
 
-	const card = document.querySelectorAll('.judge-edit-card')[currentJudgeIndex];
-	if (!card) return;
+	const judgeName = user.nickname || user.nickName || user.name || `评委${currentJudgeIndex + 1}`;
+	const judgeAvatar = user.avatarUrl || user.avatar || '';
+	const judgeUserId = user.userId || user.id || null;
 
-	// 更新姓名
-	const nameInput = card.querySelector('.judge-name-input');
-	if (nameInput) {
-		nameInput.value = user.nickname || user.name || `评委${currentJudgeIndex + 1}`;
-	}
+	judgesData[currentJudgeIndex] = {
+		...(judgesData[currentJudgeIndex] || {}),
+		id: judgesData[currentJudgeIndex]?.id || `judge-slot-${currentJudgeIndex + 1}`,
+		userId: judgeUserId,
+		name: judgeName,
+		role: '评委',
+		avatar: judgeAvatar,
+		votes: judgesData[currentJudgeIndex]?.votes || 0
+	};
 
-	// 更新头像
-	const avatarPreview = card.querySelector('.judge-avatar-preview');
-	if (avatarPreview && user.avatarUrl) {
-		avatarPreview.style.backgroundImage = `url('${user.avatarUrl}')`;
-	}
-
-	// 更新数据
-	if (judgesData[currentJudgeIndex]) {
-		judgesData[currentJudgeIndex].name = user.nickname || user.name;
-		judgesData[currentJudgeIndex].avatar = user.avatarUrl;
-	}
-
-	showNotification(`已选择 ${user.nickname} 作为评委`, 'success');
+	updateJudgesUI();
+	showNotification(`已选择 ${judgeName} 作为评委`, 'success');
 	closeUserSelectionModal();
 }
 
@@ -416,23 +426,26 @@ async function saveJudgesData() {
 		return;
 	}
 
-	// 收集表单数据
 	const cards = document.querySelectorAll('.judge-edit-card');
 	const updatedJudges = [];
 
 	cards.forEach((card, index) => {
-		const nameInput = card.querySelector('.judge-name-input');
-		const roleInput = card.querySelector('.judge-role-input');
 		const votesInput = card.querySelector('.judge-votes-input');
-
 		updatedJudges.push({
-			id: judgesData[index]?.id || `judge-${index + 1}`,
-			name: nameInput?.value || `评委${index + 1}`,
-			role: roleInput?.value || '评委',
-			avatar: judgesData[index]?.avatar || './assets/images/judges/osmanthus.jpg',
+			id: judgesData[index]?.id || `judge-slot-${index + 1}`,
+			userId: judgesData[index]?.userId || null,
+			name: judgesData[index]?.name || '待选择评委',
+			role: '评委',
+			avatar: judgesData[index]?.avatar || '',
 			votes: parseInt(votesInput?.value) || 0
 		});
 	});
+
+	const selectedCount = updatedJudges.filter(judge => judge.userId).length;
+	if (selectedCount === 0) {
+		showNotification('请先从评委用户中选择至少一位评委', 'warning');
+		return;
+	}
 
 	try {
 		// TODO: 调用后端API保存数据
@@ -445,15 +458,10 @@ async function saveJudgesData() {
 		// 	})
 		// });
 
-		// 暂时只更新本地数据
 		judgesData = updatedJudges;
 		console.log('💾 保存评委数据:', judgesData);
-
 		showNotification('评委信息保存成功', 'success');
-
-		// TODO: 通知大屏幕更新
 		notifyVoteDisplayUpdate();
-
 	} catch (error) {
 		console.error('❌ 保存评委数据失败:', error);
 		showNotification('保存失败,请重试', 'error');
@@ -464,7 +472,6 @@ async function saveJudgesData() {
  * 通知大屏幕更新评委信息
  */
 function notifyVoteDisplayUpdate() {
-	// TODO: 通过WebSocket或API通知vote-display.html更新
 	console.log('📢 通知大屏幕更新评委信息');
 }
 
@@ -472,10 +479,7 @@ function notifyVoteDisplayUpdate() {
  * 显示通知消息
  */
 function showNotification(message, type = 'info') {
-	// 复用现有的通知系统,或创建简单的通知
 	console.log(`📢 [${type.toUpperCase()}] ${message}`);
-
-	// 简单的alert实现(后续可以替换为更好的UI)
 	alert(message);
 }
 
