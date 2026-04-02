@@ -47,15 +47,9 @@ class VoteService:
         right_votes: int,
         user_id: str = "guest",
     ) -> dict:
-        """
-        提交100票分配制投票。
-        - 记录用户本次投票到 vote_records
-        - 累加到 vote_aggregates
-        - 广播投票更新给订阅该直播流的 WebSocket 客户端
-        """
         total = left_votes + right_votes
-        if total != 100:
-            raise ValueError(f"票数总和必须为100，当前为 {total}")
+        if total <= 0:
+            raise ValueError("票数必须大于0")
 
         # 写入记录
         record = VoteRecord(

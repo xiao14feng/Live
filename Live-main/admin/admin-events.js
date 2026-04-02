@@ -24,6 +24,20 @@ function initVotesEvents() {
 		});
 	}
 	
+	// 刷新投票记录按钮
+	const refreshRecordsBtn = document.getElementById('refresh-vote-records-btn');
+	if (refreshRecordsBtn) {
+		refreshRecordsBtn.addEventListener('click', async () => {
+			const streamId = document.getElementById('votes-stream-select')?.value;
+			if (streamId) {
+				await loadVoteRecords(streamId);
+				showNotification('投票记录已刷新', 'success');
+			} else {
+				alert('请先选择直播流');
+			}
+		});
+	}
+	
 	// 流选择变化时，加载对应流的票数
 	const streamSelect = document.getElementById('votes-stream-select');
 	if (streamSelect) {
@@ -210,6 +224,11 @@ async function loadVotesByStream(streamId) {
 			if (stream) {
 				showVotesStreamInfo(stream.name || 'Unnamed', data.isLive ? '🟢 直播中' : '⚪ 未开播');
 			}
+		}
+		
+		// 加载投票记录
+		if (typeof loadVoteRecords === 'function') {
+			await loadVoteRecords(streamId);
 		}
 		
 		console.log(`✅ 已加载流 ${streamId} 的票数数据`);

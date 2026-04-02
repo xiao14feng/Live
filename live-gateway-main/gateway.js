@@ -1223,6 +1223,25 @@ app.get('/api/v1/admin/judge-votes', async (req, res) => {
 	}
 });
 
+// 用户投票统计（按人数）
+app.get('/api/v1/admin/user-vote-stats', async (req, res) => {
+	try {
+		const streamId = req.query.stream_id;
+		if (!streamId) {
+			return res.status(400).json({ success: false, message: '缺少 stream_id 参数' });
+		}
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/admin/user-vote-stats?stream_id=${streamId}`);
+		const payload = await response.json();
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+		res.json(payload);
+	} catch (error) {
+		console.error('获取用户投票统计失败:', error);
+		res.status(500).json({ success: false, message: '获取用户投票统计失败' });
+	}
+});
+
 // 查询用户投票状态
 app.get('/api/v1/user-votes', async (req, res) => {
 	try {
@@ -1899,6 +1918,114 @@ app.get('/api/admin/statistics/daily', (req, res) => {
     } catch (error) {
         res.status(500).json({ error: '获取每日统计失败' });
     }
+});
+
+// v1版本：支持按stream_id查询
+app.get('/api/v1/admin/dashboard', async (req, res) => {
+	try {
+		const streamId = req.query.stream_id;
+		
+		if (!streamId) {
+			return res.status(400).json({
+				success: false,
+				message: '缺少 stream_id 参数'
+			});
+		}
+		
+		// 从后端获取该流的投票数据
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/votes?stream_id=${streamId}`);
+		const voteData = await response.json();
+		
+		const db = require(path.join(frontendAdminDir, 'db.js'));
+		const users = db.users.getAll();
+		const debate = db.debate.get();
+		const streams = db.streams.getAll();
+		const stream = streams.find(s => s.id === streamId);
+		
+		const leftVotes = voteData.data?.leftVotes || 0;
+		const rightVotes = voteData.data?.rightVotes || 0;
+		const totalVotes = leftVotes + rightVotes;
+		const leftPercentage = totalVotes > 0 ? Math.round((leftVotes / totalVotes) * 100) : 50;
+		const rightPercentage = totalVotes > 0 ? Math.round((rightVotes / totalVotes) * 100) : 50;
+		
+		// 检查该流是否正在直播
+		const isLive = globalLiveStatus.isLive && globalLiveStatus.streamId === streamId;
+		
+		// 计算直播时长
+		let liveDuration = 0;
+		if (isLive && globalLiveStatus.startTime) {
+			const startTime = new Date(globalLiveStatus.startTime);
+			liveDuration = Math.floor((Date.now() - startTime.getTime()) / 1000);
+		}
+		
+		const data = {
+			totalUsers: users.length,
+			activeUsers: wsClients.size,
+			isLive: isLive,
+			liveStreamUrl: stream ? stream.url : null,
+			streamId: streamId,
+			streamName: stream ? stream.name : null,
+			totalVotes: totalVotes,
+			leftVotes: leftVotes,
+			rightVotes: rightVotes,
+			leftPercentage: leftPercentage,
+			rightPercentage: rightPercentage,
+			totalComments: 0,
+			totalLikes: 0,
+			aiStatus: globalAIStatus.status,
+			debateTopic: {
+				title: debate.title,
+				leftSide: debate.leftPosition,
+				rightSide: debate.rightPosition,
+				description: debate.description
+			},
+			liveStartTime: isLive ? globalLiveStatus.startTime : null,
+			liveDuration: liveDuration
+		};
+		
+		res.json({
+			success: true,
+			data: data,
+			timestamp: Date.now()
+		});
+		
+	} catch (error) {
+		console.error('获取数据概览失败:', error);
+		res.status(500).json({
+			success: false,
+			message: '获取数据概览失败: ' + error.message
+		});
+	}
+});
+
+// 获取所有流的观看人数
+app.get('/api/v1/admin/live/viewers', (req, res) => {
+	try {
+		const db = require(path.join(frontendAdminDir, 'db.js'));
+		const streams = db.streams.getAll();
+		
+		// 返回所有流的观看人数（目前简化为返回WebSocket连接数）
+		const viewers = streams.map(stream => ({
+			streamId: stream.id,
+			streamName: stream.name,
+			viewerCount: stream.id === globalLiveStatus.streamId ? wsClients.size : 0,
+			isLive: stream.id === globalLiveStatus.streamId && globalLiveStatus.isLive
+		}));
+		
+		res.json({
+			success: true,
+			data: {
+				viewers: viewers,
+				totalViewers: wsClients.size
+			}
+		});
+	} catch (error) {
+		console.error('获取观看人数失败:', error);
+		res.status(500).json({
+			success: false,
+			message: '获取观看人数失败: ' + error.message
+		});
+	}
 });
 
 // 添加请求日志中间件（调试用）

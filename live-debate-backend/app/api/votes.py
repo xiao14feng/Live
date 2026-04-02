@@ -57,7 +57,6 @@ async def user_vote(
 ):
     left, right, stream_id, user_id = await _parse_vote_body(request)
     
-    # 用户投票：每人1票，转换为100票分配制
     if left + right != 1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="每次只能投1票")
     
@@ -70,12 +69,8 @@ async def user_vote(
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="您已经投过票了")
     
-    # 转换为100票分配制
-    left_100 = left * 100
-    right_100 = right * 100
-    
     try:
-        data = vote_service.submit_vote(db, stream_id, left_100, right_100, user_id)
+        data = vote_service.submit_vote(db, stream_id, left, right, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return {"success": True, "data": data, "message": "投票成功"}
@@ -88,7 +83,6 @@ async def user_vote_v1(
 ):
     left, right, stream_id, user_id = await _parse_vote_body(request)
     
-    # 用户投票：每人1票，转换为100票分配制
     if left + right != 1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="每次只能投1票")
     
@@ -101,12 +95,8 @@ async def user_vote_v1(
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="您已经投过票了")
     
-    # 转换为100票分配制
-    left_100 = left * 100
-    right_100 = right * 100
-    
     try:
-        data = vote_service.submit_vote(db, stream_id, left_100, right_100, user_id)
+        data = vote_service.submit_vote(db, stream_id, left, right, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return {"success": True, "data": data, "message": "投票成功"}
@@ -407,5 +397,29 @@ async def get_admin_judge_votes(
         "data": {
             "streamId": stream_id,
             "votes": [r.to_dict() for r in rows],
+        },
+    }
+
+
+@router.get("/v1/admin/user-vote-stats")
+async def get_user_vote_stats(
+    stream_id: str = Query(..., description="直播流ID"),
+    db: Session = Depends(get_db),
+):
+    """查询用户投票统计（按人数，不是票数权重）"""
+    records = (
+        db.query(VoteRecord)
+        .filter(VoteRecord.stream_id == stream_id)
+        .all()
+    )
+    left_count = sum(1 for r in records if r.left_votes > 0)
+    right_count = sum(1 for r in records if r.right_votes > 0)
+    return {
+        "success": True,
+        "data": {
+            "streamId": stream_id,
+            "totalCount": len(records),
+            "leftCount": left_count,
+            "rightCount": right_count,
         },
     }

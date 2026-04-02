@@ -2127,9 +2127,12 @@ function viewUser(id) {
 // ==================== 票数管理 ====================
 async function loadVotes() {
 	try {
+		console.log('🔄 开始加载票数...');
 		// 🔧 修复：根据票数管理页面选择的流加载数据
 		const votesStreamSelect = document.getElementById('votes-stream-select');
 		const selectedStreamId = votesStreamSelect?.value;
+		
+		console.log('📋 选中的流ID:', selectedStreamId);
 		
 		if (!selectedStreamId) {
 			// 如果没有选择流，显示提示
@@ -2141,21 +2144,24 @@ async function loadVotes() {
 		}
 		
 		// 从dashboard获取该流的票数信息
+		console.log('📡 正在获取dashboard数据...');
 		const result = await fetchDashboard(selectedStreamId);
 		// 处理返回格式
 		const data = result?.data || result;
-		if (!data) return;
+		console.log('📊 Dashboard数据:', data);
 		
-		if (!data.isLive) {
-		document.getElementById('votes-container') && (document.getElementById('votes-container').innerHTML = '<div style="color: #FF9800; padding: 40px 0; text-align: center;">直播未开始，无需实时监控票数～</div>');
-		return;
-	}
+		if (!data) {
+			console.warn('⚠️ Dashboard数据为空');
+			return;
+		}
 		
 		const leftVotes = data.leftVotes || 0;
 		const rightVotes = data.rightVotes || 0;
 		const totalVotes = data.totalVotes || (leftVotes + rightVotes);
 		const leftPercentage = data.leftPercentage || (totalVotes > 0 ? Math.round((leftVotes / totalVotes) * 100) : 50);
 		const rightPercentage = data.rightPercentage || (totalVotes > 0 ? Math.round((rightVotes / totalVotes) * 100) : 50);
+		
+		console.log('📊 票数统计:', { leftVotes, rightVotes, totalVotes });
 		
 		document.getElementById('admin-left-votes').textContent = leftVotes;
 		document.getElementById('admin-right-votes').textContent = rightVotes;
@@ -2168,9 +2174,120 @@ async function loadVotes() {
 			leftVotes,
 			rightVotes
 		};
+		
+		// 加载投票记录（无论是否直播都加载）
+		console.log('📋 开始加载投票记录...');
+		await loadVoteRecords(selectedStreamId);
+		console.log('✅ 投票记录加载完成');
 	} catch (error) {
-		console.error('加载票数失败:', error);
+		console.error('❌ 加载票数失败:', error);
 		showNotification('加载票数失败', 'error');
+	}
+}
+
+/**
+ * 加载投票记录
+ */
+async function loadVoteRecords(streamId) {
+	if (!streamId) return;
+	
+	try {
+		// 加载评委投票记录
+		const judgeResponse = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/admin/judge-votes?stream_id=${streamId}`);
+		const judgeData = await judgeResponse.json();
+		
+		const judgeContainer = document.getElementById('judge-vote-records');
+		if (judgeContainer) {
+			if (judgeData.success && judgeData.data && judgeData.data.votes && judgeData.data.votes.length > 0) {
+				const votes = judgeData.data.votes;
+				judgeContainer.innerHTML = `
+					<div style="overflow-x: auto;">
+						<table style="width: 100%; border-collapse: collapse;">
+							<thead>
+								<tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+									<th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">评委姓名</th>
+									<th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">投票方向</th>
+									<th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">投票时间</th>
+								</tr>
+							</thead>
+							<tbody>
+								${votes.map(vote => `
+									<tr style="border-bottom: 1px solid #e9ecef;">
+										<td style="padding: 12px;">${vote.judgeName || vote.judgeUserId || '未知'}</td>
+										<td style="padding: 12px; text-align: center;">
+											<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 12px; font-size: 13px; background: ${vote.side === 'left' ? '#d4edda' : '#d1ecf1'}; color: ${vote.side === 'left' ? '#27ae60' : '#3498db'};">
+												<img src="/static/iconfont/fangyudunpai-.png" style="width: 14px; height: 14px; opacity: 0.8;" alt="">
+												${vote.side === 'left' ? '正方' : '反方'}
+											</span>
+										</td>
+										<td style="padding: 12px; text-align: center; color: #6c757d; font-size: 13px;">${vote.createdAt ? new Date(vote.createdAt).toLocaleString('zh-CN') : '-'}</td>
+									</tr>
+								`).join('')}
+							</tbody>
+						</table>
+					</div>
+				`;
+			} else {
+				judgeContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">暂无评委投票记录</div>';
+			}
+		}
+		
+		// 加载用户投票统计 - 直接从后端查询投票记录
+		const userContainer = document.getElementById('user-vote-statistics');
+		if (userContainer) {
+			try {
+				const userVoteResponse = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/admin/user-vote-stats?stream_id=${streamId}`);
+				let userLeftCount = 0, userRightCount = 0, userTotalCount = 0;
+				
+				if (userVoteResponse.ok) {
+					const userVoteData = await userVoteResponse.json();
+					if (userVoteData.success && userVoteData.data) {
+						userLeftCount = userVoteData.data.leftCount || 0;
+						userRightCount = userVoteData.data.rightCount || 0;
+						userTotalCount = userVoteData.data.totalCount || 0;
+					}
+				} else {
+					// 降级方案：从总票数减去评委票数估算
+					const leftVotes = parseInt(document.getElementById('admin-left-votes').textContent) || 0;
+					const rightVotes = parseInt(document.getElementById('admin-right-votes').textContent) || 0;
+					const judgeVoteCount = judgeData.success && judgeData.data?.votes ? judgeData.data.votes.length : 0;
+					const judgeLeftCount = judgeData.success && judgeData.data?.votes ? judgeData.data.votes.filter(v => v.side === 'left').length : 0;
+					const judgeRightCount = judgeVoteCount - judgeLeftCount;
+					userLeftCount = Math.max(0, Math.floor((leftVotes - judgeLeftCount * 100) / 100));
+					userRightCount = Math.max(0, Math.floor((rightVotes - judgeRightCount * 100) / 100));
+					userTotalCount = userLeftCount + userRightCount;
+				}
+				
+				userContainer.innerHTML = `
+					<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+						<div style="padding: 20px; border: 2px solid #e9ecef; border-radius: 8px; text-align: center; background: #f8f9fa;">
+							<div style="font-size: 13px; color: #6c757d; margin-bottom: 8px;">总投票人数</div>
+							<div style="font-size: 32px; font-weight: 600; color: #495057;">${userTotalCount}</div>
+						</div>
+						<div style="padding: 20px; border: 2px solid #27ae60; border-radius: 8px; text-align: center; background: #d4edda;">
+							<div style="font-size: 13px; color: #6c757d; margin-bottom: 8px;">投正方人数</div>
+							<div style="font-size: 32px; font-weight: 600; color: #27ae60;">${userLeftCount}</div>
+						</div>
+						<div style="padding: 20px; border: 2px solid #3498db; border-radius: 8px; text-align: center; background: #d1ecf1;">
+							<div style="font-size: 13px; color: #6c757d; margin-bottom: 8px;">投反方人数</div>
+							<div style="font-size: 32px; font-weight: 600; color: #3498db;">${userRightCount}</div>
+						</div>
+					</div>
+				`;
+			} catch (e) {
+				userContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c;">加载失败，请刷新重试</div>';
+			}
+		}
+	} catch (error) {
+		console.error('加载投票记录失败:', error);
+		const judgeContainer = document.getElementById('judge-vote-records');
+		const userContainer = document.getElementById('user-vote-statistics');
+		if (judgeContainer) {
+			judgeContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c;">加载失败，请刷新重试</div>';
+		}
+		if (userContainer) {
+			userContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c;">加载失败，请刷新重试</div>';
+		}
 	}
 }
 

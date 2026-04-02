@@ -511,7 +511,7 @@
 					</div>
 					
 					<!-- 功能三：重置票数 -->
-					<div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
+					<div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef; margin-bottom: 20px;">
 						<h3 style="margin: 0 0 20px 0; color: #2c3e50; display: flex; align-items: center; gap: 8px;">
 							<span class="iconfont icon-refresh" style="font-size: 18px;"></span>
 							功能三：重置票数
@@ -535,6 +535,42 @@
 									<span class="iconfont icon-warning" style="font-size: 14px;"></span>
 									当前数据会被备份
 								</span>
+							</div>
+						</div>
+					</div>
+					
+					<!-- 投票记录 -->
+					<div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
+						<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+							<h3 style="margin: 0; color: #2c3e50; display: flex; align-items: center; gap: 8px;">
+								<img src="/static/iconfont/toupiao.png" class="icon-img" alt="">
+								投票记录
+							</h3>
+							<button class="btn btn-secondary btn-sm" id="refresh-vote-records-btn" style="display: flex; align-items: center; gap: 6px;">
+								<img src="/static/iconfont/shuaxin.png" class="icon-img-sm" alt="">
+								刷新记录
+							</button>
+						</div>
+						
+						<!-- 评委投票记录 -->
+						<div style="margin-bottom: 25px;">
+							<h4 style="margin: 0 0 15px 0; color: #495057; display: flex; align-items: center; gap: 6px; font-size: 16px;">
+								<img src="/static/iconfont/blue-user.png" class="icon-img-sm" alt="">
+								评委投票记录
+							</h4>
+							<div id="judge-vote-records" style="min-height: 100px;">
+								<div style="text-align: center; padding: 40px; color: #999;">加载中...</div>
+							</div>
+						</div>
+						
+						<!-- 用户投票统计 -->
+						<div>
+							<h4 style="margin: 0 0 15px 0; color: #495057; display: flex; align-items: center; gap: 6px; font-size: 16px;">
+								<img src="/static/iconfont/guankanrenshu.png" class="icon-img-sm" alt="">
+								用户投票统计
+							</h4>
+							<div id="user-vote-statistics" style="min-height: 100px;">
+								<div style="text-align: center; padding: 40px; color: #999;">加载中...</div>
 							</div>
 						</div>
 					</div>
