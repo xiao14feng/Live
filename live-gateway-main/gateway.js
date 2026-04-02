@@ -1242,6 +1242,22 @@ app.get('/api/v1/admin/user-vote-stats', async (req, res) => {
 	}
 });
 
+// 获取投票人数（大屏幕用）
+app.get('/api/v1/vote-count', async (req, res) => {
+	try {
+		const streamId = req.query.stream_id;
+		if (!streamId) {
+			return res.status(400).json({ success: false, message: '缺少 stream_id 参数' });
+		}
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/vote-count?stream_id=${streamId}`);
+		const payload = await response.json();
+		if (!response.ok) return res.status(response.status).json(payload);
+		res.json(payload);
+	} catch (error) {
+		res.status(500).json({ success: false, message: '获取投票人数失败' });
+	}
+});
+
 // 查询用户投票状态
 app.get('/api/v1/user-votes', async (req, res) => {
 	try {
@@ -2028,6 +2044,77 @@ app.get('/api/v1/admin/live/viewers', (req, res) => {
 	}
 });
 
+// ==================== 辩论流程配置 ====================
+const DEBATE_FLOW_FILE = path.join(__dirname, 'data', 'debate-flow.json');
+
+// 从文件加载配置
+function loadDebateFlowFromFile() {
+	try {
+		if (require('fs').existsSync(DEBATE_FLOW_FILE)) {
+			return JSON.parse(require('fs').readFileSync(DEBATE_FLOW_FILE, 'utf8'));
+		}
+	} catch (e) {}
+	return {};
+}
+
+// 保存配置到文件
+function saveDebateFlowToFile(configs) {
+	try {
+		const dir = path.dirname(DEBATE_FLOW_FILE);
+		if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true });
+		require('fs').writeFileSync(DEBATE_FLOW_FILE, JSON.stringify(configs, null, 2));
+	} catch (e) {
+		console.error('保存辩论流程配置失败:', e);
+	}
+}
+
+const debateFlowConfigs = loadDebateFlowFromFile();
+
+app.get('/api/admin/debate-flow', (req, res) => {
+	const streamId = req.query.stream_id;
+	if (!streamId) return res.status(400).json({ success: false, message: '缺少 stream_id 参数' });
+	const config = debateFlowConfigs[streamId] || {
+		streamId, currentSegment: 0, status: 'idle',
+		segments: [
+			{ name: '正方发言', duration: 180, side: 'left' },
+			{ name: '反方质问', duration: 120, side: 'right' },
+			{ name: '反方发言', duration: 180, side: 'right' },
+			{ name: '正方质问', duration: 120, side: 'left' },
+			{ name: '自由辩论', duration: 300, side: 'both' },
+			{ name: '正方总结', duration: 120, side: 'left' },
+			{ name: '反方总结', duration: 120, side: 'right' }
+		]
+	};
+	res.json({ success: true, data: config });
+});
+
+app.post('/api/admin/debate-flow', (req, res) => {
+	const { stream_id, segments } = req.body;
+	if (!stream_id) return res.status(400).json({ success: false, message: '缺少 stream_id 参数' });
+	debateFlowConfigs[stream_id] = { ...(debateFlowConfigs[stream_id] || {}), streamId: stream_id, segments: segments || [], updatedAt: new Date().toISOString() };
+	saveDebateFlowToFile(debateFlowConfigs);
+	broadcast('debate-flow-updated', { streamId: stream_id, segments });
+	res.json({ success: true, message: '辩论流程配置已保存', data: debateFlowConfigs[stream_id] });
+});
+
+app.post('/api/admin/debate-flow/control', (req, res) => {
+	const { stream_id, action } = req.body;
+	if (!stream_id || !action) return res.status(400).json({ success: false, message: '缺少参数' });
+	const config = debateFlowConfigs[stream_id] || { currentSegment: 0, status: 'idle', segments: [] };
+	const total = config.segments?.length || 0;
+	switch (action) {
+		case 'start': config.status = 'running'; config.currentSegment = 0; config.startTime = new Date().toISOString(); break;
+		case 'pause': config.status = 'paused'; break;
+		case 'resume': config.status = 'running'; break;
+		case 'reset': config.status = 'idle'; config.currentSegment = 0; config.startTime = null; break;
+		case 'next': if (config.currentSegment < total - 1) config.currentSegment++; break;
+		case 'prev': if (config.currentSegment > 0) config.currentSegment--; break;
+	}
+	debateFlowConfigs[stream_id] = config;
+	broadcast('debate-flow-control', { streamId: stream_id, action, config });
+	res.json({ success: true, message: `操作 ${action} 成功`, data: config });
+});
+
 // 添加请求日志中间件（调试用）
 app.use((req, res, next) => {
 	if (req.path.startsWith('/api')) {
@@ -2035,11 +2122,6 @@ app.use((req, res, next) => {
 	}
 	next();
 });
-
-// 静态文件服务（提供静态资源，如需要）
-// 注意：uni-app 小程序项目通常不需要在服务器提供前端静态文件
-// 如果需要提供构建后的静态文件，可以取消注释并配置正确路径
-// app.use(express.static(path.join(__dirname, 'dist')));
 
 // 404处理器（API 路由）
 app.use((req, res) => {

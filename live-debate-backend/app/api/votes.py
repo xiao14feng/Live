@@ -423,3 +423,30 @@ async def get_user_vote_stats(
             "rightCount": right_count,
         },
     }
+
+
+@router.get("/v1/vote-count")
+async def get_vote_count(
+    stream_id: str = Query(..., description="直播流ID"),
+    db: Session = Depends(get_db),
+):
+    """获取用户投票人数（不含评委，用于大屏幕显示）"""
+    user_records = db.query(VoteRecord).filter(VoteRecord.stream_id == stream_id).all()
+    user_left = sum(1 for r in user_records if r.left_votes > 0)
+    user_right = sum(1 for r in user_records if r.right_votes > 0)
+
+    total = user_left + user_right
+    left_pct = round((user_left / total) * 100) if total > 0 else 50
+    right_pct = 100 - left_pct
+
+    return {
+        "success": True,
+        "data": {
+            "streamId": stream_id,
+            "leftVotes": user_left,
+            "rightVotes": user_right,
+            "totalVotes": total,
+            "leftPercentage": left_pct,
+            "rightPercentage": right_pct,
+        },
+    }

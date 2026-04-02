@@ -2124,6 +2124,17 @@ function viewUser(id) {
 	alert(`查看用户 ${id} 的详细信息`);
 }
 
+function openVoteDisplay() {
+	// 获取当前选择的流ID
+	const streamId = document.getElementById('votes-stream-select')?.value
+		|| document.getElementById('judges-stream-select')?.value
+		|| document.getElementById('debate-flow-stream-select')?.value;
+	const url = streamId
+		? `/admin/vote-display.html?stream_id=${streamId}`
+		: '/admin/vote-display.html';
+	window.open(url, '_blank');
+}
+
 // ==================== 票数管理 ====================
 async function loadVotes() {
 	try {

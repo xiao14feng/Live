@@ -793,7 +793,7 @@
 					<div class="segment-info" id="segment-info">准备开始</div>
 					<div class="timer-display" id="timer-display">00:00</div>
 				</div>
-				<div class="timer-actions" style="display: none;">
+				<div class="timer-actions">
 					<div class="timer-controls">
 						<button class="timer-btn" id="btn-pause" onclick="toggleTimer()">暂停</button>
 						<button class="timer-btn primary" id="btn-resume" onclick="resumeTimer()" style="display: none;">恢复</button>
@@ -805,6 +805,8 @@
 					</div>
 				</div>
 			</div>
+			<!-- 流程预览 -->
+			<div id="debate-flow-preview" style="margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 0 20px;"></div>
 		</div>
 
 		<!-- 主内容区 -->
@@ -852,7 +854,7 @@
 			if (window.SERVER_CONFIG && window.SERVER_CONFIG.BASE_URL) {
 				return window.SERVER_CONFIG.BASE_URL;
 			}
-			return 'http://localhost:8081';
+			return 'http://localhost:8080';
 		};
 
 		// 全局状态
@@ -974,6 +976,12 @@
 			// 加载直播流列表
 			await loadStreamsList();
 
+			// 加载辩论流程配置
+			const streamId = getStreamIdFromURL();
+			if (streamId) {
+				await loadDebateFlowConfig(streamId);
+			}
+
 			// 初始化WebSocket
 			initWebSocket();
 
@@ -1017,16 +1025,25 @@
 				const votesWrap = document.createElement('div');
 				votesWrap.className = 'judge-votes';
 
-				const label = document.createElement('span');
-				label.className = 'label';
-				label.textContent = '票数';
-
 				const value = document.createElement('span');
 				value.className = 'value';
 				value.id = `${judge.id}-votes`;
-				value.textContent = judge.votes ?? 0;
 
-				votesWrap.appendChild(label);
+				// 显示投票方向
+				if (judge.side === 'left') {
+					value.textContent = '投正方';
+					value.style.color = '#e74c3c';
+					value.style.fontSize = '18px';
+				} else if (judge.side === 'right') {
+					value.textContent = '投反方';
+					value.style.color = '#3498db';
+					value.style.fontSize = '18px';
+				} else {
+					value.textContent = '未投票';
+					value.style.color = 'rgba(255,255,255,0.4)';
+					value.style.fontSize = '16px';
+				}
+
 				votesWrap.appendChild(value);
 
 				info.appendChild(nameEl);
@@ -1108,6 +1125,39 @@
 				btnPrev.disabled = false;
 				btnNext.disabled = false;
 			}
+			renderFlowPreview();
+		}
+
+		// 渲染流程预览
+		function renderFlowPreview() {
+			const container = document.getElementById('debate-flow-preview');
+			if (!container || DEBATE_SEGMENTS.length === 0) return;
+			const sideColors = { left: '#e74c3c', right: '#3498db', both: '#8e44ad' };
+			const sideLabels = { left: '正', right: '反', both: '双' };
+			container.innerHTML = DEBATE_SEGMENTS.map((seg, i) => {
+				const isActive = i === timerState.currentSegmentIndex;
+				const isDone = i < timerState.currentSegmentIndex;
+				const color = sideColors[seg.side] || '#666';
+				const mins = Math.floor(seg.duration / 60);
+				const secs = seg.duration % 60;
+				const timeStr = mins > 0 ? `${mins}分${secs > 0 ? secs + '秒' : ''}` : `${secs}秒`;
+				return `<div onclick="jumpToSegment(${i})" style="cursor:pointer;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:${isActive ? '700' : '400'};background:${isActive ? color : isDone ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)'};color:${isActive ? '#fff' : isDone ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.7)'};border:2px solid ${isActive ? color : isDone ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.2)'};transition:all 0.3s;text-decoration:${isDone ? 'line-through' : 'none'};">
+					<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${color};color:#fff;font-size:11px;text-align:center;line-height:18px;margin-right:5px;">${sideLabels[seg.side]}</span>${seg.name} <span style="opacity:0.7;font-size:11px;">${timeStr}</span>
+				</div>`;
+			}).join('<span style="color:rgba(255,255,255,0.3);align-self:center;font-size:18px;">›</span>');
+		}
+
+		// 跳转到指定环节并开始计时
+		function jumpToSegment(index) {
+			stopTimer();
+			timerState.currentSegmentIndex = index;
+			const segment = DEBATE_SEGMENTS[index];
+			timerState.remainingSeconds = segment.duration;
+			timerState.isPaused = false;
+			updateTimerDisplay();
+			updateSegmentInfo();
+			updateButtonStates();
+			startTimer();
 		}
 
 		// 开始计时器
@@ -1206,10 +1256,10 @@
 				const segment = DEBATE_SEGMENTS[timerState.currentSegmentIndex];
 				timerState.remainingSeconds = segment.duration;
 				timerState.isPaused = false;
-
 				updateTimerDisplay();
 				updateSegmentInfo();
 				updateButtonStates();
+				startTimer(); // 自动开始
 			} else if (timerState.currentSegmentIndex === DEBATE_SEGMENTS.length - 1) {
 				timerState.currentSegmentIndex = DEBATE_SEGMENTS.length;
 				timerState.remainingSeconds = 0;
@@ -1221,10 +1271,10 @@
 				const segment = DEBATE_SEGMENTS[0];
 				timerState.remainingSeconds = segment.duration;
 				timerState.isPaused = false;
-
 				updateTimerDisplay();
 				updateSegmentInfo();
 				updateButtonStates();
+				startTimer(); // 自动开始
 			}
 		}
 
@@ -1237,16 +1287,36 @@
 				const segment = DEBATE_SEGMENTS[timerState.currentSegmentIndex];
 				timerState.remainingSeconds = segment.duration;
 				timerState.isPaused = false;
-
 				updateTimerDisplay();
 				updateSegmentInfo();
 				updateButtonStates();
+				startTimer(); // 自动开始
 			} else if (timerState.currentSegmentIndex === 0) {
 				timerState.currentSegmentIndex = -1;
 				timerState.remainingSeconds = 0;
 				updateTimerDisplay();
 				updateSegmentInfo();
 				updateButtonStates();
+			}
+		}
+
+		// 加载辩论流程配置
+		async function loadDebateFlowConfig(streamId) {
+			if (!streamId) return;
+			try {
+				const response = await fetch(`${getAPIBase()}/api/admin/debate-flow?stream_id=${streamId}`);
+				if (!response.ok) return;
+				const result = await response.json();
+				if (result.success && result.data?.segments && result.data.segments.length > 0) {
+					DEBATE_SEGMENTS = result.data.segments;
+					console.log('✅ 已加载辩论流程配置:', DEBATE_SEGMENTS);
+					// 如果计时器未开始，重置到初始状态
+					if (timerState.currentSegmentIndex === -1) {
+						updateSegmentInfo();
+					}
+				}
+			} catch (e) {
+				console.warn('加载辩论流程配置失败:', e);
 			}
 		}
 
@@ -1297,6 +1367,7 @@
 				if (selectedStreamId) {
 					currentStreamId = selectedStreamId;
 					await loadVotes(selectedStreamId);
+					await loadDebateFlowConfig(selectedStreamId);
 				}
 
 				select.addEventListener('change', async (e) => {
@@ -1349,6 +1420,42 @@
 				const rightPercentage = data.rightPercentage || (totalVotes > 0 ? Math.round((rightVotes / totalVotes) * 100) : 50);
 
 				updateVotesDisplay(leftVotes, rightVotes, totalVotes, leftPercentage, rightPercentage);
+				
+				// 加载实际投票人数（用户+评委）
+				try {
+					const countRes = await fetch(`${getAPIBase()}/api/v1/vote-count?stream_id=${streamId}`);
+					if (countRes.ok) {
+						const countData = await countRes.json();
+						if (countData.success && countData.data) {
+							const d = countData.data;
+							updateVotesDisplay(d.leftVotes, d.rightVotes, d.totalVotes, d.leftPercentage, d.rightPercentage);
+						}
+					}
+				} catch (e) {}
+
+				// 加载评委投票数据
+				try {
+					const judgesRes = await fetch(`${getAPIBase()}/api/v1/admin/judges?stream_id=${streamId}`);
+					if (judgesRes.ok) {
+						const judgesData = await judgesRes.json();
+						if (judgesData.success && judgesData.data) {
+							const judges = judgesData.data.judges || [];
+							const judgeVotes = judgesData.data.judgeVotes || [];
+							const updatedJudges = judges.map((j, idx) => {
+								const vote = judgeVotes.find(v => v.judgeUserId === j.userId);
+								return {
+									id: `judge-${idx + 1}`,
+									name: j.name || `评委${idx + 1}`,
+									role: j.role || '评委',
+									avatar: j.avatar || DEFAULT_JUDGES[idx]?.avatar || '',
+									votes: vote ? 1 : 0,
+									side: vote?.side || null
+								};
+							});
+							setJudges(updatedJudges);
+						}
+					}
+				} catch (e) {}
 				
 				// 🔧 新增：加载该流的辩论流程配置
 				await loadDebateFlowConfig(streamId);
