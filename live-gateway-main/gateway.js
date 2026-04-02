@@ -1102,6 +1102,127 @@ app.get('/api/admin/ai-content', (req, res) => {
 	}
 });
 
+// ==================== 评委管理 API (代理到Python后端) ====================
+// 获取评委分配
+app.get('/api/v1/admin/judges', async (req, res) => {
+	try {
+		const streamId = req.query.stream_id;
+		if (!streamId) {
+			return res.status(400).json({ success: false, message: '缺少 stream_id 参数' });
+		}
+		
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/admin/judges?stream_id=${streamId}`);
+		const payload = await response.json();
+		
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+		
+		res.json(payload);
+	} catch (error) {
+		console.error('获取评委分配失败:', error);
+		res.status(500).json({ success: false, message: '获取评委分配失败' });
+	}
+});
+
+// 保存评委分配
+app.post('/api/v1/admin/judges', async (req, res) => {
+	try {
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/admin/judges`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(req.body)
+		});
+		const payload = await response.json();
+		
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+		
+		res.json(payload);
+	} catch (error) {
+		console.error('保存评委分配失败:', error);
+		res.status(500).json({ success: false, message: '保存评委分配失败' });
+	}
+});
+
+// 查询评委投票状态
+app.get('/api/v1/judge-vote/status', async (req, res) => {
+	try {
+		const streamId = req.query.stream_id;
+		const userId = req.query.user_id;
+		
+		if (!streamId || !userId) {
+			return res.status(400).json({ success: false, message: '缺少 stream_id 或 user_id 参数' });
+		}
+		
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/judge-vote/status?stream_id=${streamId}&user_id=${userId}`);
+		const payload = await response.json();
+		
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+		
+		res.json(payload);
+	} catch (error) {
+		console.error('查询投票状态失败:', error);
+		res.status(500).json({ success: false, message: '查询投票状态失败' });
+	}
+});
+
+// 提交评委投票
+app.post('/api/v1/judge-vote', async (req, res) => {
+	try {
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/judge-vote`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(req.body)
+		});
+		const payload = await response.json();
+		
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+		
+		// 广播投票更新
+		if (payload.success && payload.data && payload.data.aggregate) {
+			broadcast('votes-updated', {
+				streamId: req.body.stream_id || req.body.streamId,
+				leftVotes: payload.data.aggregate.leftVotes,
+				rightVotes: payload.data.aggregate.rightVotes,
+				totalVotes: payload.data.aggregate.totalVotes
+			});
+		}
+		
+		res.json(payload);
+	} catch (error) {
+		console.error('提交投票失败:', error);
+		res.status(500).json({ success: false, message: '提交投票失败' });
+	}
+});
+
+// 获取评委投票记录
+app.get('/api/v1/admin/judge-votes', async (req, res) => {
+	try {
+		const streamId = req.query.stream_id;
+		if (!streamId) {
+			return res.status(400).json({ success: false, message: '缺少 stream_id 参数' });
+		}
+		
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/admin/judge-votes?stream_id=${streamId}`);
+		const payload = await response.json();
+		
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+		
+		res.json(payload);
+	} catch (error) {
+		console.error('获取投票记录失败:', error);
+		res.status(500).json({ success: false, message: '获取投票记录失败' });
+	}
+});
+
 // ==================== v1 API 路由（兼容新版本前端） ====================
 // 这些路由与上面的路由功能相同，但使用 /api/v1 前缀，支持认证token
 

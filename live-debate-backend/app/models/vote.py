@@ -1,7 +1,7 @@
 """
 投票数据模型
 """
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
 import uuid
@@ -27,6 +27,57 @@ class VoteRecord(Base):
             "stream_id": self.stream_id,
             "left_votes": self.left_votes,
             "right_votes": self.right_votes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class JudgeAssignment(Base):
+    """评委席位分配（每个直播流 3 个席位）"""
+    __tablename__ = "judge_assignments"
+    __table_args__ = (
+        UniqueConstraint("stream_id", "slot_index", name="uq_judge_assignment_stream_slot"),
+    )
+
+    id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    stream_id = Column(String(100), nullable=False, index=True)
+    slot_index = Column(Integer, nullable=False)  # 1/2/3
+    judge_user_id = Column(String(100), nullable=True, index=True)
+    judge_name = Column(String(100), nullable=True)
+    judge_avatar = Column(String(255), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "stream_id": self.stream_id,
+            "slot": self.slot_index,
+            "userId": self.judge_user_id,
+            "name": self.judge_name,
+            "avatar": self.judge_avatar,
+        }
+
+
+class JudgeVote(Base):
+    """评委投票（一个评委在一个直播流只能投一次）"""
+    __tablename__ = "judge_votes"
+    __table_args__ = (
+        UniqueConstraint("stream_id", "judge_user_id", name="uq_judge_vote_stream_user"),
+    )
+
+    id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    stream_id = Column(String(100), nullable=False, index=True)
+    judge_user_id = Column(String(100), nullable=False, index=True)
+    judge_name = Column(String(100), nullable=True)
+    side = Column(String(20), nullable=False)  # left/right
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "stream_id": self.stream_id,
+            "judgeUserId": self.judge_user_id,
+            "judgeName": self.judge_name,
+            "side": self.side,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

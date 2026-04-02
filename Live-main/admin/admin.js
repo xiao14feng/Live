@@ -650,29 +650,30 @@ function initNavigation() {
 	const pages = document.querySelectorAll('.page');
 	const pageTitle = document.querySelector('.page-title');
 	const currentRole = getCurrentAdminRole();
-	const judgeOnlyPage = 'debate-flow';
+	const voteOnlyPage = 'judge-vote';
 	const pageTitles = {
 		'dashboard': '数据概览',
 		'live-setup': '直播设置',
 		'users': '用户管理',
 		'votes': '票数管理',
 		'judges': '评委管理',
+		'judge-vote': '投票',
 		'debate-flow': '辩论流程',
 		'stream-manage': '直播流管理',
 		'ai-content': 'AI 内容管理',
 		'statistics': '数据统计'
 	};
 
-	if (currentRole === 'judge') {
+	if (currentRole === 'judge' || currentRole === 'user') {
 		navItems.forEach(item => {
 			const targetPage = item.getAttribute('data-page');
-			const shouldShow = targetPage === judgeOnlyPage;
+			const shouldShow = targetPage === voteOnlyPage;
 			item.style.display = shouldShow ? '' : 'none';
 			item.classList.toggle('active', shouldShow);
 		});
-		pages.forEach(page => page.classList.toggle('active', page.id === judgeOnlyPage));
-		if (pageTitle) pageTitle.textContent = pageTitles[judgeOnlyPage];
-		loadPageData(judgeOnlyPage);
+		pages.forEach(page => page.classList.toggle('active', page.id === voteOnlyPage));
+		if (pageTitle) pageTitle.textContent = pageTitles[voteOnlyPage];
+		loadPageData(voteOnlyPage);
 		return;
 	}
 
@@ -730,8 +731,13 @@ function loadPageData(page) {
 			}
 			break;
 		case 'judges':
-			if (typeof loadStreamsForJudges === 'function') {
-				loadStreamsForJudges();
+			if (typeof initJudgesManagement === 'function') {
+				initJudgesManagement();
+			}
+			break;
+		case 'judge-vote':
+			if (typeof initJudgeVotePage === 'function') {
+				initJudgeVotePage();
 			}
 			break;
 		case 'debate-flow':

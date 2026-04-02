@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from ..database import get_db
-from ..schemas.vote import VoteRequest, VoteRequestWrapper, VoteResponse, VoteData
 from ..services.vote_service import VoteService, DEFAULT_STREAM_ID
+from ..models.vote import VoteRecord, JudgeAssignment, JudgeVote
 
 router = APIRouter()
 vote_service = VoteService()
@@ -21,7 +21,6 @@ async def get_votes(
     stream_id: Optional[str] = Query(None, description="直播流ID"),
     db: Session = Depends(get_db),
 ):
-    """获取当前投票数据 - GET /api/votes"""
     sid = stream_id or DEFAULT_STREAM_ID
     data = vote_service.get_votes(db, sid)
     return {"success": True, "data": data}
@@ -32,7 +31,6 @@ async def get_votes_v1(
     stream_id: Optional[str] = Query(None, description="直播流ID"),
     db: Session = Depends(get_db),
 ):
-    """获取当前投票数据 - GET /api/v1/votes"""
     sid = stream_id or DEFAULT_STREAM_ID
     data = vote_service.get_votes(db, sid)
     return {"success": True, "data": data}
@@ -41,14 +39,7 @@ async def get_votes_v1(
 # ==================== 用户投票 ====================
 
 async def _parse_vote_body(request: Request) -> tuple[int, int, str, str]:
-    """
-    兼容两种请求体格式：
-    - 直接格式: { leftVotes, rightVotes, streamId, userId }
-    - 包装格式: { request: { leftVotes, rightVotes, streamId, userId } }
-    """
     body = await request.json()
-
-    # 包装格式
     if "request" in body and isinstance(body["request"], dict):
         body = body["request"]
 
@@ -64,7 +55,6 @@ async def user_vote(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """用户投票 - POST /api/user-vote"""
     left, right, stream_id, user_id = await _parse_vote_body(request)
     try:
         data = vote_service.submit_vote(db, stream_id, left, right, user_id)
@@ -78,7 +68,6 @@ async def user_vote_v1(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """用户投票 - POST /api/v1/user-vote"""
     left, right, stream_id, user_id = await _parse_vote_body(request)
     try:
         data = vote_service.submit_vote(db, stream_id, left, right, user_id)
@@ -87,14 +76,13 @@ async def user_vote_v1(
     return {"success": True, "data": data, "message": "投票成功"}
 
 
-# ==================== 管理员接口 ====================
+# ==================== 管理员票数接口 ====================
 
 @router.get("/admin/votes")
 async def admin_get_votes(
     stream_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """管理端获取投票数据 - GET /api/admin/votes"""
     sid = stream_id or DEFAULT_STREAM_ID
     data = vote_service.get_votes(db, sid)
     return {"success": True, "data": data}
@@ -105,7 +93,6 @@ async def admin_set_votes(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """管理端设置票数 - PUT /api/admin/votes"""
     body = await request.json()
     stream_id = body.get("streamId") or body.get("stream_id") or DEFAULT_STREAM_ID
     left = int(body.get("leftVotes", 0))
@@ -119,7 +106,6 @@ async def admin_reset_votes(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """管理端重置票数 - POST /api/admin/votes/reset"""
     body = {}
     try:
         body = await request.json()
@@ -135,7 +121,6 @@ async def admin_vote_statistics(
     stream_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """管理端投票统计 - GET /api/admin/votes/statistics"""
     data = vote_service.get_statistics(db, stream_id)
     return {"success": True, "data": data}
 
@@ -145,7 +130,6 @@ async def admin_vote_statistics_v1(
     stream_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """管理端投票统计 v1 - GET /api/v1/admin/votes/statistics"""
     data = vote_service.get_statistics(db, stream_id)
     return {"success": True, "data": data}
 
@@ -158,8 +142,6 @@ async def get_user_votes(
     user_id: str = Query(..., description="用户ID"),
     db: Session = Depends(get_db),
 ):
-    """查询用户投票记录 - GET /api/v1/user-votes"""
-    from ..models.vote import VoteRecord
     records = (
         db.query(VoteRecord)
         .filter(
@@ -179,5 +161,215 @@ async def get_user_votes(
             "totalLeftVotes": total_left,
             "totalRightVotes": total_right,
             "voteCount": len(records),
+        },
+    }
+
+
+# ==================== 评委分配与评委投票 ====================
+
+@router.get("/v1/admin/judges")
+async def get_judges_assignments(
+    stream_id: str = Query(..., description="直播流ID"),
+    db: Session = Depends(get_db),
+):
+    assignments = (
+        db.query(JudgeAssignment)
+        .filter(JudgeAssignment.stream_id == stream_id)
+        .order_by(JudgeAssignment.slot_index.asc())
+        .all()
+    )
+    votes = (
+        db.query(JudgeVote)
+        .filter(JudgeVote.stream_id == stream_id)
+        .order_by(JudgeVote.created_at.asc())
+        .all()
+    )
+
+    if not assignments:
+        judges = [
+            {"slot": 1, "userId": None, "name": "", "avatar": "", "role": "judge", "votes": 0},
+            {"slot": 2, "userId": None, "name": "", "avatar": "", "role": "judge", "votes": 0},
+            {"slot": 3, "userId": None, "name": "", "avatar": "", "role": "judge", "votes": 0},
+        ]
+    else:
+        judges = [
+            {
+                "slot": a.slot_index,
+                "userId": a.judge_user_id,
+                "name": a.judge_name or "",
+                "avatar": a.judge_avatar or "",
+                "role": "judge",
+                "votes": 0,
+            }
+            for a in assignments
+        ]
+
+    return {
+        "success": True,
+        "data": {
+            "streamId": stream_id,
+            "judges": judges,
+            "judgeVotes": [v.to_dict() for v in votes],
+        },
+    }
+
+
+@router.post("/v1/admin/judges")
+async def save_judges_assignments(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    body = await request.json()
+    stream_id = body.get("stream_id") or body.get("streamId")
+    judges = body.get("judges") or []
+
+    if not stream_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="缺少 stream_id")
+    if not isinstance(judges, list) or len(judges) != 3:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="评委席位必须是3个")
+
+    selected_ids = [str(j.get("userId")) for j in judges if j.get("userId")]
+    if len(selected_ids) != len(set(selected_ids)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="同一个评委不能重复选择")
+
+    for i, judge in enumerate(judges, start=1):
+        row = (
+            db.query(JudgeAssignment)
+            .filter(
+                JudgeAssignment.stream_id == stream_id,
+                JudgeAssignment.slot_index == i,
+            )
+            .first()
+        )
+        if not row:
+            row = JudgeAssignment(stream_id=stream_id, slot_index=i)
+            db.add(row)
+
+        row.judge_user_id = judge.get("userId") or None
+        row.judge_name = judge.get("name") or ""
+        row.judge_avatar = judge.get("avatar") or ""
+
+    db.commit()
+    return {"success": True, "message": "评委分配已保存"}
+
+
+@router.get("/v1/judge-vote/status")
+async def get_judge_vote_status(
+    stream_id: str = Query(..., description="直播流ID"),
+    user_id: str = Query(..., description="用户ID"),
+    db: Session = Depends(get_db),
+):
+    assignment = (
+        db.query(JudgeAssignment)
+        .filter(
+            JudgeAssignment.stream_id == stream_id,
+            JudgeAssignment.judge_user_id == user_id,
+        )
+        .first()
+    )
+    existed_vote = (
+        db.query(JudgeVote)
+        .filter(
+            JudgeVote.stream_id == stream_id,
+            JudgeVote.judge_user_id == user_id,
+        )
+        .first()
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "streamId": stream_id,
+            "userId": user_id,
+            "isAssignedJudge": assignment is not None,
+            "slot": assignment.slot_index if assignment else None,
+            "judgeName": assignment.judge_name if assignment else None,
+            "hasVoted": existed_vote is not None,
+            "votedSide": existed_vote.side if existed_vote else None,
+            "todoRequired": assignment is not None and existed_vote is None,
+        },
+    }
+
+
+@router.post("/v1/judge-vote")
+async def submit_judge_vote(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    body = await request.json()
+    stream_id = body.get("stream_id") or body.get("streamId")
+    user_id = body.get("user_id") or body.get("userId")
+    side = (body.get("side") or "").lower()
+
+    if side not in ("left", "right"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="side 只能是 left 或 right")
+    if not stream_id or not user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="缺少 stream_id 或 user_id")
+
+    assignment = (
+        db.query(JudgeAssignment)
+        .filter(
+            JudgeAssignment.stream_id == stream_id,
+            JudgeAssignment.judge_user_id == user_id,
+        )
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="你不是该直播间已分配评委")
+
+    existed = (
+        db.query(JudgeVote)
+        .filter(
+            JudgeVote.stream_id == stream_id,
+            JudgeVote.judge_user_id == user_id,
+        )
+        .first()
+    )
+    if existed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="该评委已投票，不能重复投票")
+
+    new_vote = JudgeVote(
+        stream_id=stream_id,
+        judge_user_id=user_id,
+        judge_name=assignment.judge_name,
+        side=side,
+    )
+    db.add(new_vote)
+
+    agg = vote_service.get_aggregate(db, stream_id)
+    if side == "left":
+        agg.left_votes += 1
+    else:
+        agg.right_votes += 1
+
+    db.commit()
+    db.refresh(agg)
+
+    return {
+        "success": True,
+        "message": "评委投票成功",
+        "data": {
+            "vote": new_vote.to_dict(),
+            "aggregate": agg.to_dict(),
+        },
+    }
+
+
+@router.get("/v1/admin/judge-votes")
+async def get_admin_judge_votes(
+    stream_id: str = Query(..., description="直播流ID"),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(JudgeVote)
+        .filter(JudgeVote.stream_id == stream_id)
+        .order_by(JudgeVote.created_at.asc())
+        .all()
+    )
+    return {
+        "success": True,
+        "data": {
+            "streamId": stream_id,
+            "votes": [r.to_dict() for r in rows],
         },
     }

@@ -2,206 +2,93 @@
  * 评委管理模块
  */
 
-// 全局状态
-let currentJudgeIndex = null; // 当前正在编辑的评委索引
-let currentStreamId = null; // 当前选中的直播流ID
+let currentJudgeIndex = null;
+let currentStreamId = null;
 let judgesData = [
-	{
-		id: 'judge-slot-1',
-		userId: null,
-		name: '待选择评委',
-		role: '评委',
-		avatar: '',
-		votes: 0
-	},
-	{
-		id: 'judge-slot-2',
-		userId: null,
-		name: '待选择评委',
-		role: '评委',
-		avatar: '',
-		votes: 0
-	},
-	{
-		id: 'judge-slot-3',
-		userId: null,
-		name: '待选择评委',
-		role: '评委',
-		avatar: '',
-		votes: 0
-	}
+	{ id: 'judge-slot-1', slot: 1, userId: null, name: '', role: '', avatar: '', votes: 0 },
+	{ id: 'judge-slot-2', slot: 2, userId: null, name: '', role: '', avatar: '', votes: 0 },
+	{ id: 'judge-slot-3', slot: 3, userId: null, name: '', role: '', avatar: '', votes: 0 }
 ];
 
-/**
- * 初始化评委管理模块
- */
 function initJudgesManagement() {
-	console.log('🎯 初始化评委管理模块');
-
-	// 加载直播流列表
 	loadStreamsForJudges();
+	bindJudgesEvents();
+	renderJudgeSelectionSlots();
+	renderVotesTable();
+}
 
-	// 先把界面收成“只从用户选择”的模式
-	prepareJudgeCardsForSelectionMode();
-	updateJudgesUI();
-
-	// 绑定直播流选择事件
+function bindJudgesEvents() {
 	const streamSelect = document.getElementById('judges-stream-select');
 	if (streamSelect && !streamSelect.dataset.bound) {
 		streamSelect.addEventListener('change', handleStreamChange);
 		streamSelect.dataset.bound = 'true';
 	}
 
-	// 刷新直播流列表按钮
 	const refreshBtn = document.getElementById('judges-refresh-streams-btn');
 	if (refreshBtn && !refreshBtn.dataset.bound) {
 		refreshBtn.addEventListener('click', loadStreamsForJudges);
 		refreshBtn.dataset.bound = 'true';
 	}
 
-	// 绑定“从评委用户选择”按钮
-	document.querySelectorAll('.select-from-users-btn').forEach((btn, index) => {
-		if (!btn.dataset.bound) {
-			btn.textContent = '从评委用户选择';
-			btn.addEventListener('click', () => openUserSelectionModal(index));
-			btn.dataset.bound = 'true';
-		}
-	});
-
-	// 头像区只做 hover 提示，不再触发上传
-	document.querySelectorAll('.judge-avatar-preview').forEach((preview) => {
-		const overlay = preview.querySelector('.avatar-overlay');
-		if (!preview.dataset.bound) {
-			preview.addEventListener('mouseenter', () => {
-				if (overlay) overlay.style.display = 'flex';
-			});
-			preview.addEventListener('mouseleave', () => {
-				if (overlay) overlay.style.display = 'none';
-			});
-			preview.dataset.bound = 'true';
-		}
-	});
-
-	// 绑定保存按钮
 	const saveBtn = document.getElementById('save-judges-btn');
 	if (saveBtn && !saveBtn.dataset.bound) {
 		saveBtn.addEventListener('click', saveJudgesData);
 		saveBtn.dataset.bound = 'true';
 	}
 
-	// 关闭弹窗按钮
 	const closeModalBtn = document.getElementById('close-user-modal');
 	if (closeModalBtn && !closeModalBtn.dataset.bound) {
 		closeModalBtn.addEventListener('click', closeUserSelectionModal);
 		closeModalBtn.dataset.bound = 'true';
 	}
 
-	// 点击弹窗背景关闭
 	const modal = document.getElementById('select-user-modal');
 	if (modal && !modal.dataset.bound) {
 		modal.addEventListener('click', (e) => {
-			if (e.target === modal) {
-				closeUserSelectionModal();
-			}
+			if (e.target === modal) closeUserSelectionModal();
 		});
 		modal.dataset.bound = 'true';
 	}
 
-	// 用户搜索
 	const userSearch = document.getElementById('modal-user-search');
 	if (userSearch && !userSearch.dataset.bound) {
-		userSearch.addEventListener('input', (e) => {
-			filterUsers(e.target.value);
-		});
+		userSearch.placeholder = '输入评委昵称或用户ID快速筛选...';
+		userSearch.addEventListener('input', (e) => filterUsers(e.target.value));
 		userSearch.dataset.bound = 'true';
 	}
-
-	console.log('✅ 评委管理模块初始化完成');
 }
 
-function prepareJudgeCardsForSelectionMode() {
-	document.querySelectorAll('.judge-edit-card').forEach((card, index) => {
-		const titleEl = card.querySelector('h4');
-		const nameInput = card.querySelector('.judge-name-input');
-		const roleInput = card.querySelector('.judge-role-input');
-		const uploadBtn = card.querySelector('.upload-avatar-btn');
-		const fileInput = card.querySelector('.judge-avatar-upload');
-		const avatarPreview = card.querySelector('.judge-avatar-preview');
-		const overlay = card.querySelector('.avatar-overlay');
-
-		if (titleEl) titleEl.textContent = `评委席位 ${index + 1}`;
-		if (nameInput) {
-			nameInput.readOnly = true;
-			nameInput.placeholder = '请从评委用户中选择';
-			nameInput.style.background = '#eef2f7';
-		}
-		if (roleInput) {
-			roleInput.readOnly = true;
-			roleInput.value = '评委';
-			roleInput.style.background = '#eef2f7';
-		}
-		if (uploadBtn) {
-			uploadBtn.style.display = 'none';
-		}
-		if (fileInput) {
-			fileInput.disabled = true;
-		}
-		if (avatarPreview) {
-			avatarPreview.style.cursor = 'default';
-		}
-		if (overlay) {
-			overlay.textContent = '从用户选择';
-		}
-	});
-}
-
-/**
- * 加载直播流列表
- */
 async function loadStreamsForJudges() {
 	try {
 		const result = await getStreamsList();
 		let streams = [];
-		if (Array.isArray(result)) {
-			streams = result;
-		} else if (result?.streams) {
-			streams = result.streams;
-		} else if (result?.data?.streams) {
-			streams = result.data.streams;
-		} else if (result?.data && Array.isArray(result.data)) {
-			streams = result.data;
-		}
+		if (Array.isArray(result)) streams = result;
+		else if (result?.streams) streams = result.streams;
+		else if (result?.data?.streams) streams = result.data.streams;
+		else if (result?.data && Array.isArray(result.data)) streams = result.data;
 
 		const select = document.getElementById('judges-stream-select');
 		if (!select) return;
 
 		select.innerHTML = '<option value="">请选择要管理的直播流</option>';
-
-		streams.filter(stream => stream.enabled).forEach(stream => {
+		streams.filter(s => s.enabled).forEach(stream => {
 			const option = document.createElement('option');
 			option.value = stream.id;
 			option.textContent = `${stream.name} (${(stream.type || 'hls').toUpperCase()})`;
 			select.appendChild(option);
 		});
-
-		console.log('✅ 评委管理直播流列表加载成功，共', streams.length, '个');
 	} catch (error) {
 		console.error('❌ 加载直播流列表失败:', error);
 		showNotification('加载直播流列表失败', 'error');
 	}
 }
 
-/**
- * 处理直播流选择变化
- */
 function handleStreamChange(e) {
 	const streamId = e.target.value;
 	currentStreamId = streamId;
 
-	const select = e.target;
-	const selectedOption = select.options[select.selectedIndex];
+	const selectedOption = e.target.options[e.target.selectedIndex];
 	const streamName = selectedOption ? selectedOption.textContent : '-';
-
 	const infoDiv = document.getElementById('judges-current-stream-info');
 	const nameSpan = document.getElementById('judges-current-stream-name');
 
@@ -212,58 +99,88 @@ function handleStreamChange(e) {
 		infoDiv.style.display = 'none';
 	}
 
-	if (streamId) {
-		loadJudgesDataForStream(streamId);
-	}
+	if (streamId) loadJudgesDataForStream(streamId);
 }
 
-/**
- * 加载指定直播流的评委数据
- */
 async function loadJudgesDataForStream(streamId) {
 	try {
-		// TODO: 调用后端API获取评委数据
-		// const response = await fetch(`${getAPIBase()}/api/v1/admin/judges?stream_id=${streamId}`);
-		// const result = await response.json();
-		// judgesData = result.data || judgesData;
-
-		console.log('📝 加载评委数据 (当前使用本地数据)');
-		prepareJudgeCardsForSelectionMode();
-		updateJudgesUI();
+		console.log(`📡 加载评委数据: streamId=${streamId}`);
+		
+		// 从后端加载评委分配数据
+		const response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/admin/judges?stream_id=${streamId}`);
+		const result = await response.json();
+		
+		if (response.ok && result.success && result.data) {
+			const { judges, judgeVotes } = result.data;
+			
+			// 更新本地数据
+			if (judges && judges.length === 3) {
+				judgesData = judges.map((j, index) => ({
+					id: `judge-slot-${index + 1}`,
+					slot: j.slot || (index + 1),
+					userId: j.userId || null,
+					name: j.name || '',
+					role: j.role || 'judge',
+					avatar: j.avatar || '',
+					votes: j.votes || 0
+				}));
+			}
+			
+			console.log('✅ 评委数据加载成功:', judgesData);
+		}
+		
+		renderJudgeSelectionSlots();
+		renderVotesTable();
+		
+		// 加载评委投票结果
+		await loadJudgeVoteResults();
 	} catch (error) {
 		console.error('❌ 加载评委数据失败:', error);
 		showNotification('加载评委数据失败', 'error');
 	}
 }
 
-/**
- * 更新评委UI显示
- */
-function updateJudgesUI() {
-	document.querySelectorAll('.judge-edit-card').forEach((card, index) => {
-		const judge = judgesData[index];
-		if (!judge) return;
+function renderJudgeSelectionSlots() {
+	const slotCards = document.querySelectorAll('.judge-slot-card');
+	slotCards.forEach((card, index) => {
+		const judge = judgesData[index] || {};
+		const status = card.querySelector('span');
+		const avatar = card.querySelector('.judge-avatar-preview');
+		const nameText = card.querySelector('.judge-name-text');
+		const userIdText = card.querySelector('.judge-userid-text');
+		const roleText = card.querySelector('.judge-role-text');
+		const selectBtn = card.querySelector('.select-from-users-btn');
 
-		const nameInput = card.querySelector('.judge-name-input');
-		const roleInput = card.querySelector('.judge-role-input');
-		const votesInput = card.querySelector('.judge-votes-input');
-		const avatarPreview = card.querySelector('.judge-avatar-preview');
+		if (status) status.textContent = judge.userId ? '已选择' : '未选择';
+		if (avatar) avatar.style.backgroundImage = judge.avatar ? `url('${judge.avatar}')` : 'none';
+		if (nameText) nameText.textContent = judge.name || '-';
+		if (userIdText) userIdText.textContent = judge.userId || '-';
+		if (roleText) roleText.textContent = judge.role || '-';
 
-		if (nameInput) nameInput.value = judge.name || '待选择评委';
-		if (roleInput) roleInput.value = '评委';
-		if (votesInput) votesInput.value = judge.votes || 0;
-		if (avatarPreview) {
-			avatarPreview.style.backgroundImage = judge.avatar ? `url('${judge.avatar}')` : 'none';
+		if (selectBtn && !selectBtn.dataset.bound) {
+			selectBtn.addEventListener('click', () => openUserSelectionModal(index));
+			selectBtn.dataset.bound = 'true';
 		}
 	});
 }
 
-/**
- * 打开用户选择弹窗
- */
+function renderVotesTable() {
+	const tbody = document.getElementById('judges-votes-table-body');
+	if (!tbody) return;
+
+	tbody.innerHTML = judgesData.map((judge, index) => `
+		<div style="display: grid; grid-template-columns: 1fr 1fr 150px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; align-items: center;">
+			<div style="font-weight: 600; color: #334155;">评委席位 ${index + 1}</div>
+			<div style="color: #0f172a;">${judge.name || '未选择'}</div>
+			<div>
+				<input type="number" class="form-input judge-votes-input" data-judge-index="${index}" value="${Number(judge.votes || 0)}" min="0" style="width: 120px; padding: 6px 10px;">
+			</div>
+		</div>
+	`).join('');
+}
+
 async function openUserSelectionModal(judgeIndex) {
 	currentJudgeIndex = judgeIndex;
-
 	const modal = document.getElementById('select-user-modal');
 	if (modal) {
 		modal.style.display = 'flex';
@@ -271,20 +188,12 @@ async function openUserSelectionModal(judgeIndex) {
 	}
 }
 
-/**
- * 关闭用户选择弹窗
- */
 function closeUserSelectionModal() {
 	const modal = document.getElementById('select-user-modal');
-	if (modal) {
-		modal.style.display = 'none';
-	}
+	if (modal) modal.style.display = 'none';
 	currentJudgeIndex = null;
 }
 
-/**
- * 加载用户列表供选择
- */
 async function loadUsersForSelection() {
 	try {
 		const result = await fetchUserList(1, 100, {});
@@ -293,15 +202,10 @@ async function loadUsersForSelection() {
 	} catch (error) {
 		console.error('❌ 加载用户列表失败:', error);
 		const listDiv = document.getElementById('modal-users-list');
-		if (listDiv) {
-			listDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c;">加载失败,请重试</div>';
-		}
+		if (listDiv) listDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c;">加载失败,请重试</div>';
 	}
 }
 
-/**
- * 渲染用户列表
- */
 function renderUsersList(users) {
 	const listDiv = document.getElementById('modal-users-list');
 	if (!listDiv) return;
@@ -328,17 +232,11 @@ function renderUsersList(users) {
 					const role = String(user.role || 'judge').toLowerCase();
 					return `
 						<div class="user-select-item" data-user-id="${userId}" style="display: grid; grid-template-columns: 80px 1.4fr 1.6fr 0.8fr 110px; align-items: center; gap: 0; padding: 14px 16px; border-bottom: 1px solid #eef2f7; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease;">
-							<div>
-								<img src="${avatar}" alt="${nickname}" style="width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid #e9eef5; background: #f8fafc;">
-							</div>
+							<div><img src="${avatar}" alt="${nickname}" style="width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid #e9eef5; background: #f8fafc;"></div>
 							<div style="font-weight: 600; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px;">${nickname}</div>
 							<div style="font-size: 12px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px;">${userId}</div>
-							<div>
-								<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: #e0f2fe; color: #0369a1; font-size: 12px; font-weight: 700;">${role}</span>
-							</div>
-							<div style="text-align: center;">
-								<button class="btn btn-sm btn-primary select-this-user-btn" style="padding: 6px 14px; min-width: 72px;">选择</button>
-							</div>
+							<div><span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: #e0f2fe; color: #0369a1; font-size: 12px; font-weight: 700;">${role}</span></div>
+							<div style="text-align: center;"><button class="btn btn-sm btn-primary select-this-user-btn" style="padding: 6px 14px; min-width: 72px;">选择</button></div>
 						</div>
 					`;
 				}).join('')}
@@ -352,9 +250,7 @@ function renderUsersList(users) {
 			const item = btn.closest('.user-select-item');
 			const userId = item.dataset.userId;
 			const user = users.find(u => String(u.userId || u.id || '') === String(userId));
-			if (user) {
-				selectUserAsJudge(user);
-			}
+			if (user) selectUserAsJudge(user);
 		});
 	});
 
@@ -370,19 +266,13 @@ function renderUsersList(users) {
 		item.addEventListener('click', () => {
 			const userId = item.dataset.userId;
 			const user = users.find(u => String(u.userId || u.id || '') === String(userId));
-			if (user) {
-				selectUserAsJudge(user);
-			}
+			if (user) selectUserAsJudge(user);
 		});
 	});
 }
 
-/**
- * 选择用户作为评委
- */
 function selectUserAsJudge(user) {
 	if (currentJudgeIndex === null) return;
-
 	const judgeName = user.nickname || user.nickName || user.name || `评委${currentJudgeIndex + 1}`;
 	const judgeAvatar = user.avatarUrl || user.avatar || '';
 	const judgeUserId = user.userId || user.id || null;
@@ -390,110 +280,164 @@ function selectUserAsJudge(user) {
 	judgesData[currentJudgeIndex] = {
 		...(judgesData[currentJudgeIndex] || {}),
 		id: judgesData[currentJudgeIndex]?.id || `judge-slot-${currentJudgeIndex + 1}`,
+		slot: currentJudgeIndex + 1,
 		userId: judgeUserId,
 		name: judgeName,
-		role: '评委',
+		role: 'judge',
 		avatar: judgeAvatar,
 		votes: judgesData[currentJudgeIndex]?.votes || 0
 	};
 
-	updateJudgesUI();
+	renderJudgeSelectionSlots();
+	renderVotesTable();
 	showNotification(`已选择 ${judgeName} 作为评委`, 'success');
 	closeUserSelectionModal();
 }
 
-/**
- * 过滤用户列表
- */
 function filterUsers(keyword) {
 	const items = document.querySelectorAll('.user-select-item');
 	items.forEach(item => {
 		const text = item.textContent.toLowerCase();
-		if (text.includes(keyword.toLowerCase())) {
-			item.style.display = 'flex';
-		} else {
-			item.style.display = 'none';
-		}
+		item.style.display = text.includes(keyword.toLowerCase()) ? 'grid' : 'none';
 	});
 }
 
-/**
- * 保存评委数据
- */
 async function saveJudgesData() {
 	if (!currentStreamId) {
 		showNotification('请先选择直播流', 'warning');
 		return;
 	}
 
-	const cards = document.querySelectorAll('.judge-edit-card');
-	const updatedJudges = [];
-
-	cards.forEach((card, index) => {
-		const votesInput = card.querySelector('.judge-votes-input');
-		updatedJudges.push({
-			id: judgesData[index]?.id || `judge-slot-${index + 1}`,
-			userId: judgesData[index]?.userId || null,
-			name: judgesData[index]?.name || '待选择评委',
-			role: '评委',
-			avatar: judgesData[index]?.avatar || '',
-			votes: parseInt(votesInput?.value) || 0
-		});
+	document.querySelectorAll('.judge-votes-input').forEach((input) => {
+		const idx = Number(input.dataset.judgeIndex);
+		if (!Number.isNaN(idx) && judgesData[idx]) {
+			judgesData[idx].votes = Number(input.value || 0);
+		}
 	});
 
-	const selectedCount = updatedJudges.filter(judge => judge.userId).length;
+	const selectedCount = judgesData.filter(j => j.userId).length;
 	if (selectedCount === 0) {
-		showNotification('请先从评委用户中选择至少一位评委', 'warning');
+		showNotification('请先选择至少一位评委', 'warning');
+		return;
+	}
+
+	// 检查是否有重复选择的评委
+	const selectedUserIds = judgesData.filter(j => j.userId).map(j => j.userId);
+	const uniqueUserIds = [...new Set(selectedUserIds)];
+	if (selectedUserIds.length !== uniqueUserIds.length) {
+		showNotification('同一个评委不能重复选择', 'error');
 		return;
 	}
 
 	try {
-		// TODO: 调用后端API保存数据
-		// const response = await fetch(`${getAPIBase()}/api/v1/admin/judges`, {
-		// 	method: 'POST',
-		// 	headers: { 'Content-Type': 'application/json' },
-		// 	body: JSON.stringify({
-		// 		stream_id: currentStreamId,
-		// 		judges: updatedJudges
-		// 	})
-		// });
+		console.log('💾 保存评委数据:', { streamId: currentStreamId, judges: judgesData });
+		
+		// 调用后端API保存评委分配
+		const response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/admin/judges`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				stream_id: currentStreamId,
+				judges: judgesData.map(j => ({
+					slot: j.slot,
+					userId: j.userId,
+					name: j.name,
+					avatar: j.avatar,
+					role: j.role || 'judge',
+					votes: j.votes || 0
+				}))
+			})
+		});
 
-		judgesData = updatedJudges;
-		console.log('💾 保存评委数据:', judgesData);
-		showNotification('评委信息保存成功', 'success');
-		notifyVoteDisplayUpdate();
+		const result = await response.json();
+		
+		if (response.ok && result.success) {
+			showNotification('评委信息保存成功', 'success');
+			notifyVoteDisplayUpdate();
+			
+			// 刷新评委投票结果显示
+			await loadJudgeVoteResults();
+		} else {
+			throw new Error(result.message || '保存失败');
+		}
 	} catch (error) {
 		console.error('❌ 保存评委数据失败:', error);
-		showNotification('保存失败,请重试', 'error');
+		showNotification(error.message || '保存失败,请重试', 'error');
 	}
 }
 
-/**
- * 通知大屏幕更新评委信息
- */
 function notifyVoteDisplayUpdate() {
 	console.log('📢 通知大屏幕更新评委信息');
 }
 
 /**
- * 显示通知消息
+ * 加载评委投票结果
  */
-function showNotification(message, type = 'info') {
-	console.log(`📢 [${type.toUpperCase()}] ${message}`);
-	alert(message);
+async function loadJudgeVoteResults() {
+	if (!currentStreamId) return;
+	
+	try {
+		const response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/admin/judge-votes?stream_id=${currentStreamId}`);
+		const result = await response.json();
+		
+		if (response.ok && result.success && result.data) {
+			renderJudgeVoteResults(result.data.votes || []);
+		}
+	} catch (error) {
+		console.error('❌ 加载评委投票结果失败:', error);
+	}
 }
 
 /**
- * 获取API基础地址
+ * 渲染评委投票结果
  */
-function getAPIBase() {
-	if (window.SERVER_CONFIG && window.SERVER_CONFIG.BASE_URL) {
-		return window.SERVER_CONFIG.BASE_URL;
+function renderJudgeVoteResults(votes) {
+	const tbody = document.getElementById('judges-vote-results-body');
+	if (!tbody) return;
+	
+	if (!votes || votes.length === 0) {
+		tbody.innerHTML = `
+			<div style="padding: 20px; text-align: center; color: #94a3b8; grid-column: 1 / -1;">
+				暂无评委投票记录
+			</div>
+		`;
+		return;
 	}
-	return 'http://localhost:8081';
+	
+	tbody.innerHTML = votes.map(vote => {
+		const sideText = vote.side === 'left' ? '正方' : '反方';
+		const sideColor = vote.side === 'left' ? '#27ae60' : '#3498db';
+		const timeText = vote.created_at ? new Date(vote.created_at).toLocaleString('zh-CN') : '-';
+		
+		return `
+			<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; padding: 12px 14px; border-bottom: 1px solid #eef2f7; align-items: center;">
+				<div style="font-weight: 600; color: #334155;">${vote.judgeName || vote.judgeUserId || '未知评委'}</div>
+				<div>
+					<span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: ${sideColor}20; color: ${sideColor}; font-size: 13px; font-weight: 600;">
+						${sideText}
+					</span>
+				</div>
+				<div style="color: #64748b; font-size: 12px;">${timeText}</div>
+			</div>
+		`;
+	}).join('');
 }
 
-// 导出函数供外部使用
+function showNotification(message, type = 'info') {
+	console.log(`📢 [${type.toUpperCase()}] ${message}`);
+	
+	// 如果全局有 showNotification 函数,使用它
+	if (typeof window.showNotification === 'function' && window.showNotification !== showNotification) {
+		window.showNotification(message, type);
+		return;
+	}
+	
+	// 否则使用简单的alert
+	alert(message);
+}
+
 if (typeof window !== 'undefined') {
 	window.initJudgesManagement = initJudgesManagement;
 	window.judgesData = judgesData;

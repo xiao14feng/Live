@@ -320,11 +320,38 @@
             loginError.style.display = 'none';
             loginSuccess.style.display = 'none';
             
-            setTimeout(() => {
+            setTimeout(async () => {
                 try {
+                    // 从数据库查询用户信息获取真实的userId
+                    let userId = null;
+                    let userInfo = null;
+                    
+                    try {
+                        const response = await fetch('http://localhost:8080/api/admin/users');
+                        const users = await response.json();
+                        const userList = Array.isArray(users) ? users : (users.users || []);
+                        
+                        // 根据用户名和角色查找用户
+                        userInfo = userList.find(u => 
+                            (u.nickName === username || u.username === username) && 
+                            String(u.role || '').toLowerCase() === role.toLowerCase()
+                        );
+                        
+                        if (userInfo) {
+                            userId = userInfo.id || userInfo.userId || userInfo.openid;
+                            console.log('✅ 找到用户:', userInfo);
+                        } else {
+                            console.warn('⚠️ 未找到匹配的用户，使用用户名作为ID');
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ 查询用户失败，使用用户名作为ID:', error);
+                    }
+                    
                     const userData = {
+                        userId: userId || username,  // 使用真实ID或用户名作为后备
                         username: username,
                         role: role,
+                        openid: userId || username,
                         loginTime: new Date().toISOString(),
                         token: 'mock_token_' + Math.random().toString(36).substr(2, 9)
                     };

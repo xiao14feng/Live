@@ -532,6 +532,39 @@ async function fetchUserList(page = 1, pageSize = 20, filters = {}) {
 	};
 }
 
+async function fetchJudgesAssignments(streamId) {
+	return await apiRequest(`/api/v1/admin/judges?stream_id=${encodeURIComponent(streamId)}`, {
+		method: 'GET'
+	});
+}
+
+async function saveJudgesAssignments(streamId, judges) {
+	return await apiRequest('/api/v1/admin/judges', {
+		method: 'POST',
+		body: JSON.stringify({ stream_id: streamId, judges })
+	});
+}
+
+async function fetchJudgeVoteStatus(streamId, userId) {
+	return await apiRequest(`/api/v1/judge-vote/status?stream_id=${encodeURIComponent(streamId)}&user_id=${encodeURIComponent(userId)}`, {
+		method: 'GET'
+	});
+}
+
+async function submitJudgeVote(streamId, userId, side) {
+	return await apiRequest('/api/v1/judge-vote', {
+		method: 'POST',
+		body: JSON.stringify({ stream_id: streamId, user_id: userId, side })
+	});
+}
+
+async function fetchAdminJudgeVotes(streamId) {
+	return await apiRequest(`/api/v1/admin/judge-votes?stream_id=${encodeURIComponent(streamId)}`, {
+		method: 'GET'
+	});
+}
+
+
 /**
  * 获取投票统计
  * @param {string} timeRange - 时间范围：'1h'|'6h'|'12h'|'24h'|'7d'

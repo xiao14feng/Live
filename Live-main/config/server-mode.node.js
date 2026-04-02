@@ -37,7 +37,7 @@ const getCurrentServerConfig = () => {
         return {
             mode: 'real',
             url: REAL_SERVER_URL,
-            port: DEPLOY_PORT,  // 使用部署端口（8082）
+            port: 8082,  // 使用部署端口（8082）
             wechat: {
                 useMock: false,
                 appid: REAL_WECHAT_CONFIG.appid,

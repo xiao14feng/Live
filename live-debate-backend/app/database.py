@@ -51,7 +51,7 @@ def create_tables():
         # 导入user模型的Base（它包含所有其他模型）
         from .models.user import Base as UserBase
         from .models.user import User
-        from .models.vote import VoteRecord, VoteAggregate
+        from .models.vote import VoteRecord, VoteAggregate, JudgeAssignment, JudgeVote
         from .models.debate import Debate
         from .models.stream import Stream
         from .models.ai_content import AIContent, Comment
