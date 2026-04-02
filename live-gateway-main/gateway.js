@@ -1223,6 +1223,64 @@ app.get('/api/v1/admin/judge-votes', async (req, res) => {
 	}
 });
 
+// 查询用户投票状态
+app.get('/api/v1/user-votes', async (req, res) => {
+	try {
+		const streamId = req.query.stream_id;
+		const userId = req.query.user_id;
+		
+		if (!streamId || !userId) {
+			return res.status(400).json({ success: false, message: '缺少 stream_id 或 user_id 参数' });
+		}
+		
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/user-votes?stream_id=${streamId}&user_id=${userId}`);
+		const payload = await response.json();
+		
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+		
+		res.json(payload);
+	} catch (error) {
+		console.error('查询用户投票状态失败:', error);
+		res.status(500).json({ success: false, message: '查询用户投票状态失败' });
+	}
+});
+
+// 用户投票
+app.post('/api/v1/user-vote', async (req, res) => {
+	try {
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/user-vote`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(req.body)
+		});
+		const payload = await response.json();
+		
+		if (!response.ok) {
+			return res.status(response.status).json(payload);
+		}
+		
+		// 广播投票更新
+		if (payload.success && payload.data) {
+			const streamId = req.body.request?.streamId || req.body.streamId;
+			if (streamId) {
+				broadcast('votes-updated', {
+					streamId: streamId,
+					leftVotes: payload.data.leftVotes || 0,
+					rightVotes: payload.data.rightVotes || 0,
+					totalVotes: (payload.data.leftVotes || 0) + (payload.data.rightVotes || 0)
+				});
+			}
+		}
+		
+		res.json(payload);
+	} catch (error) {
+		console.error('用户投票失败:', error);
+		res.status(500).json({ success: false, message: '用户投票失败' });
+	}
+});
+
 // ==================== v1 API 路由（兼容新版本前端） ====================
 // 这些路由与上面的路由功能相同，但使用 /api/v1 前缀，支持认证token
 

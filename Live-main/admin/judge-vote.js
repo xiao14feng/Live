@@ -149,31 +149,81 @@ async function loadStreamsForVote() {
 			return;
 		}
 		
-		// 为每个流检查投票状态
-		console.log(`🔍 检查各个直播流的投票状态... (用户ID: ${userId})`);
+		const userRole = (currentVoteUser.role || '').toLowerCase();
+		console.log(`🔍 检查各个直播流的投票状态... (用户ID: ${userId}, 角色: ${userRole})`);
 		console.log(`📋 将检查 ${enabledStreams.length} 个直播流:`, enabledStreams.map(s => s.name));
 		
+		// 为每个流检查投票状态
 		const streamStatuses = await Promise.all(
 			enabledStreams.map(async (stream) => {
 				try {
-					const url = `${SERVER_CONFIG.BASE_URL}/api/v1/judge-vote/status?stream_id=${stream.id}&user_id=${userId}`;
+					let url;
+					// 根据角色使用不同的API
+					if (userRole === 'judge') {
+						// 评委：检查是否分配
+						url = `${SERVER_CONFIG.BASE_URL}/api/v1/judge-vote/status?stream_id=${stream.id}&user_id=${userId}`;
+					} else {
+						// 用户：检查是否已投票
+						url = `${SERVER_CONFIG.BASE_URL}/api/v1/user-votes?stream_id=${stream.id}&user_id=${userId}`;
+					}
+					
 					console.log(`   检查流: ${stream.name} (${stream.id})`);
 					
 					const response = await fetch(url);
 					if (response.ok) {
 						const result = await response.json();
 						console.log(`   ✓ ${stream.name}:`, result.data);
-						return {
-							stream,
-							status: result.data || {}
-						};
+						
+						// 统一返回格式
+						if (userRole === 'judge') {
+							return {
+								stream,
+								status: result.data || {}
+							};
+						} else {
+							// 用户投票状态转换为统一格式
+							const hasVoted = result.data?.hasVoted || false;
+							const leftVotes = result.data?.totalLeftVotes || result.data?.leftVotes || 0;
+							const rightVotes = result.data?.totalRightVotes || result.data?.rightVotes || 0;
+							return {
+								stream,
+								status: {
+									isAssignedJudge: true, // 用户不需要分配，默认可以投
+									hasVoted: hasVoted,
+									votedSide: hasVoted ? (leftVotes > 0 ? 'left' : 'right') : null,
+									userId: userId
+								}
+							};
+						}
 					} else {
 						console.warn(`   ✗ ${stream.name}: HTTP ${response.status}`);
 					}
 				} catch (error) {
 					console.warn(`   ✗ ${stream.name}: ${error.message}`);
 				}
-				return { stream, status: {} };
+				
+				// 默认状态：用户可以投票，评委需要检查分配
+				if (userRole === 'judge') {
+					// 评委：默认不能投票（需要分配）
+					return { 
+						stream, 
+						status: {
+							isAssignedJudge: false,
+							hasVoted: false,
+							votedSide: null
+						}
+					};
+				} else {
+					// 用户：默认可以投票
+					return { 
+						stream, 
+						status: {
+							isAssignedJudge: true, // 用户默认可以投票
+							hasVoted: false,
+							votedSide: null
+						}
+					};
+				}
 			})
 		);
 		
@@ -191,13 +241,14 @@ async function loadStreamsForVote() {
 			
 			// 根据状态设置选项文本和样式
 			if (hasVoted) {
-				const sideText = status.votedSide === 'left' ? '正方' : '反方';
-				option.textContent = `${stream.name} - 已投票(${sideText})`;
+				const sideText = status.votedSide === 'left' ? '正方' : (status.votedSide === 'right' ? '反方' : '');
+				option.textContent = `${stream.name} - 已投票${sideText ? '(' + sideText + ')' : ''}`;
 				option.disabled = true;
 				option.style.color = '#95a5a6';
 				option.style.background = '#ecf0f1';
 				votedCount++;
-			} else if (!isAssigned) {
+			} else if (!isAssigned && userRole === 'judge') {
+				// 只有评委才会显示"未分配"
 				option.textContent = `${stream.name} - 未分配评委`;
 				option.disabled = true;
 				option.style.color = '#95a5a6';
@@ -222,26 +273,28 @@ async function loadStreamsForVote() {
 		// 更新状态文本
 		const statusText = document.getElementById('judge-vote-status-text');
 		if (statusText) {
+			const roleText = userRole === 'judge' ? '评委' : '观众';
 			statusText.innerHTML = `
 				<div style="background: #e3f2fd; padding: 10px; border-radius: 4px; margin-bottom: 10px; font-size: 13px;">
 					<strong>当前登录用户:</strong><br>
 					用户名: ${currentVoteUser.username || userId}<br>
-					角色: ${currentVoteUser.role || '未知'}<br>
+					角色: ${roleText}<br>
 					用户ID: <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">${userId}</code>
 				</div>
 				<div style="padding: 10px; background: ${canVoteCount > 0 ? '#d4edda' : '#fff3cd'}; border-radius: 4px; font-size: 13px;">
 					<strong>投票状态:</strong><br>
 					✅ 可投票: ${canVoteCount} 个<br>
 					⏸️ 已投票: ${votedCount} 个<br>
-					❌ 未分配: ${notAssignedCount} 个
+					${userRole === 'judge' ? `❌ 未分配: ${notAssignedCount} 个` : ''}
 				</div>
-				${canVoteCount === 0 ? '<div style="margin-top: 10px; color: #e74c3c; font-weight: 600;">⚠️ 您没有可投票的直播流，请联系管理员分配评委席位</div>' : '<div style="margin-top: 10px; color: #27ae60;">请从上方下拉框选择直播流进行投票</div>'}
+				${canVoteCount === 0 ? `<div style="margin-top: 10px; color: #e74c3c; font-weight: 600;">⚠️ ${userRole === 'judge' ? '您没有可投票的直播流，请联系管理员分配评委席位' : '您已投过票或暂无可投票的直播流'}</div>` : '<div style="margin-top: 10px; color: #27ae60;">请从上方下拉框选择直播流进行投票</div>'}
 			`;
 		}
 		
 		// 如果没有可投票的流，显示提示
 		if (canVoteCount === 0) {
-			showNotification('您没有可投票的直播流，请联系管理员分配评委席位', 'warning');
+			const msg = userRole === 'judge' ? '您没有可投票的直播流，请联系管理员分配评委席位' : '您已投过票或暂无可投票的直播流';
+			showNotification(msg, 'warning');
 		}
 	} catch (error) {
 		console.error('❌ 加载直播流列表失败:', error);
@@ -278,30 +331,58 @@ async function checkVoteStatus(streamId) {
 		return;
 	}
 	
-	// 获取用户ID
+	// 获取用户ID和角色
 	const userId = currentVoteUser.userId || currentVoteUser.openid || currentVoteUser.id || currentVoteUser.username;
 	if (!userId) {
 		showNotification('用户信息不完整，请重新登录', 'error');
 		return;
 	}
 	
+	const userRole = (currentVoteUser.role || '').toLowerCase();
+	
 	try {
-		console.log(`🔍 查询投票状态: streamId=${streamId}, userId=${userId}`);
+		console.log(`🔍 查询投票状态: streamId=${streamId}, userId=${userId}, role=${userRole}`);
 		
-		const response = await fetch(
-			`${SERVER_CONFIG.BASE_URL}/api/v1/judge-vote/status?stream_id=${streamId}&user_id=${userId}`
-		);
+		let response, result;
+		
+		if (userRole === 'judge') {
+			// 评委：查询评委投票状态
+			response = await fetch(
+				`${SERVER_CONFIG.BASE_URL}/api/v1/judge-vote/status?stream_id=${streamId}&user_id=${userId}`
+			);
+		} else {
+			// 用户：查询用户投票状态
+			response = await fetch(
+				`${SERVER_CONFIG.BASE_URL}/api/v1/user-votes?stream_id=${streamId}&user_id=${userId}`
+			);
+		}
 		
 		if (!response.ok) {
 			throw new Error(`HTTP ${response.status}`);
 		}
 		
-		const result = await response.json();
+		result = await response.json();
 		console.log('📊 投票状态:', result);
 		
 		if (result.success && result.data) {
-			voteStatus = result.data;
-			updateUIBasedOnStatus(result.data);
+			if (userRole === 'judge') {
+				// 评委状态
+				voteStatus = result.data;
+				updateUIBasedOnStatus(result.data);
+			} else {
+				// 用户状态 - 转换为统一格式
+				const hasVoted = result.data.hasVoted || false;
+				const leftVotes = result.data.totalLeftVotes || result.data.leftVotes || 0;
+				const rightVotes = result.data.totalRightVotes || result.data.rightVotes || 0;
+				
+				voteStatus = {
+					isAssignedJudge: true, // 用户默认可以投票
+					hasVoted: hasVoted,
+					votedSide: hasVoted ? (leftVotes > 0 ? 'left' : 'right') : null,
+					userId: userId
+				};
+				updateUIBasedOnStatus(voteStatus);
+			}
 		} else {
 			throw new Error(result.message || '查询失败');
 		}
@@ -318,25 +399,33 @@ async function checkVoteStatus(streamId) {
  */
 function updateUIBasedOnStatus(status) {
 	const { isAssignedJudge, hasVoted, votedSide, slot, judgeName, todoRequired } = status;
+	const userRole = (currentVoteUser?.role || '').toLowerCase();
 	
 	// 更新待办提示框
-	if (todoRequired) {
+	if (todoRequired && userRole === 'judge') {
 		showTodoBox(`您是评委席位 ${slot} (${judgeName || ''}), 请尽快投票！`);
 	} else {
 		hideTodoBox();
 	}
 	
 	// 更新状态文本
-	if (!isAssignedJudge) {
+	if (!isAssignedJudge && userRole === 'judge') {
+		// 评委未分配
 		updateVoteStatusText('您不是该直播流的评委，无法投票');
 		updateVoteButtonsState(false);
 	} else if (hasVoted) {
+		// 已投票
 		const sideText = votedSide === 'left' ? '正方' : '反方';
 		updateVoteStatusText(`您已投票给 ${sideText}，不能重复投票`);
 		updateVoteButtonsState(false);
 		highlightVotedButton(votedSide);
 	} else {
-		updateVoteStatusText(`您是评委席位 ${slot}，请选择投票方向`);
+		// 可以投票
+		if (userRole === 'judge') {
+			updateVoteStatusText(`您是评委席位 ${slot}，请选择投票方向`);
+		} else {
+			updateVoteStatusText('请选择投票方向');
+		}
 		updateVoteButtonsState(true);
 	}
 }
@@ -432,12 +521,14 @@ async function submitVote(side) {
 		return;
 	}
 	
-	// 获取用户ID
+	// 获取用户ID和角色
 	const userId = currentVoteUser.userId || currentVoteUser.openid || currentVoteUser.id || currentVoteUser.username;
 	if (!userId) {
 		showNotification('用户信息不完整，请重新登录', 'error');
 		return;
 	}
+	
+	const userRole = (currentVoteUser.role || '').toLowerCase();
 	
 	// 二次确认
 	const sideText = side === 'left' ? '正方' : '反方';
@@ -447,25 +538,46 @@ async function submitVote(side) {
 	}
 	
 	try {
-		console.log(`🗳️ 提交投票: streamId=${currentVoteStreamId}, userId=${userId}, side=${side}`);
+		console.log(`🗳️ 提交投票: streamId=${currentVoteStreamId}, userId=${userId}, side=${side}, role=${userRole}`);
 		
 		// 禁用按钮，防止重复提交
 		updateVoteButtonsState(false);
 		updateVoteStatusText('正在提交投票...');
 		
-		const response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/judge-vote`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				stream_id: currentVoteStreamId,
-				user_id: userId,
-				side: side
-			})
-		});
+		let response, result;
 		
-		const result = await response.json();
+		if (userRole === 'judge') {
+			// 评委投票
+			response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/judge-vote`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					stream_id: currentVoteStreamId,
+					user_id: userId,
+					side: side
+				})
+			});
+		} else {
+			// 用户投票
+			response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/user-vote`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					request: {
+						streamId: currentVoteStreamId,
+						userId: userId,
+						leftVotes: side === 'left' ? 1 : 0,
+						rightVotes: side === 'right' ? 1 : 0
+					}
+				})
+			});
+		}
+		
+		result = await response.json();
 		console.log('📊 投票结果:', result);
 		
 		if (response.ok && result.success) {

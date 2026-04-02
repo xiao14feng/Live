@@ -56,8 +56,26 @@ async def user_vote(
     db: Session = Depends(get_db),
 ):
     left, right, stream_id, user_id = await _parse_vote_body(request)
+    
+    # 用户投票：每人1票，转换为100票分配制
+    if left + right != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="每次只能投1票")
+    
+    # 检查是否已投票
+    existing = db.query(VoteRecord).filter(
+        VoteRecord.stream_id == stream_id,
+        VoteRecord.user_id == user_id
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="您已经投过票了")
+    
+    # 转换为100票分配制
+    left_100 = left * 100
+    right_100 = right * 100
+    
     try:
-        data = vote_service.submit_vote(db, stream_id, left, right, user_id)
+        data = vote_service.submit_vote(db, stream_id, left_100, right_100, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return {"success": True, "data": data, "message": "投票成功"}
@@ -69,8 +87,26 @@ async def user_vote_v1(
     db: Session = Depends(get_db),
 ):
     left, right, stream_id, user_id = await _parse_vote_body(request)
+    
+    # 用户投票：每人1票，转换为100票分配制
+    if left + right != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="每次只能投1票")
+    
+    # 检查是否已投票
+    existing = db.query(VoteRecord).filter(
+        VoteRecord.stream_id == stream_id,
+        VoteRecord.user_id == user_id
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="您已经投过票了")
+    
+    # 转换为100票分配制
+    left_100 = left * 100
+    right_100 = right * 100
+    
     try:
-        data = vote_service.submit_vote(db, stream_id, left, right, user_id)
+        data = vote_service.submit_vote(db, stream_id, left_100, right_100, user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return {"success": True, "data": data, "message": "投票成功"}
