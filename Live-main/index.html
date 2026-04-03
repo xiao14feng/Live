@@ -318,7 +318,7 @@
         // 检测后端服务状态
         async function checkBackendStatus() {
             try {
-                const response = await fetch('http://localhost:8000/health');
+                const response = await fetch('https://determined-ambition-production-a3c3.up.railway.app/health');
                 if (response.ok) {
                     document.getElementById('backend-status').innerHTML = '<span class="status-ok">✓ 运行中</span>';
                     document.getElementById('db-status').innerHTML = '<span class="status-ok">✓ 正常</span>';
@@ -333,7 +333,7 @@
         // 测试WebSocket连接
         function testWebSocket() {
             try {
-                const ws = new WebSocket('ws://localhost:8000/ws');
+                const ws = new WebSocket('wss://determined-ambition-production-a3c3.up.railway.app/ws');
                 ws.onopen = () => {
                     document.getElementById('ws-status').innerHTML = '<span class="status-ok">✓ 已连接</span>';
                     ws.send(JSON.stringify({type: 'ping'}));
@@ -365,7 +365,7 @@
                     options.body = JSON.stringify(data);
                 }
                 
-                const response = await fetch(`http://localhost:8000${endpoint}`, options);
+                const response = await fetch(`https://determined-ambition-production-a3c3.up.railway.app${endpoint}`, options);
                 const result = await response.json();
                 
                 responseDiv.innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
