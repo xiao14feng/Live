@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "live",
+  "compatibility_date": "2026-04-03",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "Live-main"
+  },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
+}
