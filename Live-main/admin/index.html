@@ -359,8 +359,34 @@
 				<div id="users" class="page">
 					<div class="page-header">
 						<h2>用户管理</h2>
-						<div class="search-box">
-							<input type="text" id="user-search" class="search-input" placeholder="搜索用户...">
+						<div style="display: flex; gap: 10px; align-items: center;">
+							<div class="search-box">
+								<input type="text" id="user-search" class="search-input" placeholder="搜索用户...">
+							</div>
+							<button class="btn btn-primary btn-sm" onclick="showAddUserForm()" style="white-space: nowrap;">+ 添加用户</button>
+						</div>
+					</div>
+
+					<!-- 添加用户表单（默认隐藏） -->
+					<div id="add-user-form" style="display: none; background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e9ecef;">
+						<h4 style="margin: 0 0 15px 0; color: #2c3e50;">添加新用户</h4>
+						<div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;">
+							<div class="form-group" style="margin: 0;">
+								<label>用户姓名</label>
+								<input type="text" id="new-user-name" class="form-input" placeholder="输入用户姓名">
+							</div>
+							<div class="form-group" style="margin: 0;">
+								<label>用户身份</label>
+								<select id="new-user-role" class="form-select">
+									<option value="user">普通用户</option>
+									<option value="judge">评委</option>
+									<option value="admin">管理员</option>
+								</select>
+							</div>
+							<div style="display: flex; gap: 8px;">
+								<button class="btn btn-primary btn-sm" onclick="submitAddUser()">确认添加</button>
+								<button class="btn btn-secondary btn-sm" onclick="hideAddUserForm()">取消</button>
+							</div>
 						</div>
 					</div>
 
@@ -456,86 +482,72 @@
 						</div>
 					</div>
 					
+					<!-- 功能一/二/三：折叠操作 -->
+					<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+						<button class="btn btn-secondary btn-sm" onclick="toggleVotePanel('set')" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">
+							<span class="iconfont icon-edit" style="font-size: 14px;"></span> 设置票数
+						</button>
+						<button class="btn btn-secondary btn-sm" onclick="toggleVotePanel('add')" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">
+							<span class="iconfont icon-plus" style="font-size: 14px;"></span> 增加票数
+						</button>
+						<button class="btn btn-secondary btn-sm" onclick="toggleVotePanel('reset')" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">
+							<span class="iconfont icon-refresh" style="font-size: 14px;"></span> 重置票数
+						</button>
+					</div>
+
 					<!-- 功能一：手动设置票数 -->
-					<div style="background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
-						<h3 style="margin: 0 0 20px 0; color: #2c3e50; display: flex; align-items: center; gap: 8px;">
-							<span class="iconfont icon-edit" style="font-size: 18px;"></span>
-							功能一：手动设置票数
-						</h3>
-						<p style="color: #6c757d; margin-bottom: 20px;">直接设置正方和反方的票数（会覆盖原有数据）</p>
-						<div style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 15px; align-items: end;">
-							<div class="form-group">
+					<div id="vote-panel-set" style="display: none; background: white; padding: 20px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
+						<p style="color: #6c757d; margin: 0 0 15px 0; font-size: 13px;">直接设置正方和反方的票数（会覆盖原有数据）</p>
+						<div style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 12px; align-items: end;">
+							<div class="form-group" style="margin: 0;">
 								<label>正方票数</label>
 								<input type="number" id="set-left-votes" class="form-input" placeholder="例如：30000" min="0">
 							</div>
-							<div class="form-group">
+							<div class="form-group" style="margin: 0;">
 								<label>反方票数</label>
 								<input type="number" id="set-right-votes" class="form-input" placeholder="例如：20000" min="0">
 							</div>
-							<div class="form-group">
+							<div class="form-group" style="margin: 0;">
 								<label>调整原因（可选）</label>
 								<input type="text" id="set-votes-reason" class="form-input" placeholder="例如：数据校正">
 							</div>
 						</div>
-						<button class="btn btn-primary" id="set-votes-btn" style="margin-top: 15px; padding: 12px 30px; display: flex; align-items: center; gap: 6px; justify-content: center;">
-							<span class="iconfont icon-check" style="font-size: 16px;"></span>
-							设置票数
-						</button>
+						<button class="btn btn-primary btn-sm" id="set-votes-btn" style="margin-top: 12px;">确认设置</button>
 					</div>
-					
+
 					<!-- 功能二：增加票数 -->
-					<div style="background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
-						<h3 style="margin: 0 0 20px 0; color: #2c3e50; display: flex; align-items: center; gap: 8px;">
-							<span class="iconfont icon-plus" style="font-size: 18px;"></span>
-							功能二：增加票数
-						</h3>
-						<p style="color: #6c757d; margin-bottom: 20px;">在当前票数基础上增加（累加）</p>
-						<div style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 15px; align-items: end;">
-							<div class="form-group">
+					<div id="vote-panel-add" style="display: none; background: white; padding: 20px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
+						<p style="color: #6c757d; margin: 0 0 15px 0; font-size: 13px;">在当前票数基础上增加（累加）</p>
+						<div style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 12px; align-items: end;">
+							<div class="form-group" style="margin: 0;">
 								<label>增加正方票数</label>
 								<input type="number" id="add-left-votes" class="form-input" placeholder="例如：1000" min="0">
 							</div>
-							<div class="form-group">
+							<div class="form-group" style="margin: 0;">
 								<label>增加反方票数</label>
 								<input type="number" id="add-right-votes" class="form-input" placeholder="例如：500" min="0">
 							</div>
-							<div class="form-group">
+							<div class="form-group" style="margin: 0;">
 								<label>调整原因（可选）</label>
 								<input type="text" id="add-votes-reason" class="form-input" placeholder="例如：补偿票数">
 							</div>
 						</div>
-						<button class="btn btn-success" id="add-votes-btn" style="margin-top: 15px; padding: 12px 30px; display: flex; align-items: center; gap: 6px; justify-content: center;">
-							<span class="iconfont icon-plus" style="font-size: 16px;"></span>
-							增加票数
-						</button>
+						<button class="btn btn-success btn-sm" id="add-votes-btn" style="margin-top: 12px;">确认增加</button>
 					</div>
-					
+
 					<!-- 功能三：重置票数 -->
-					<div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef; margin-bottom: 20px;">
-						<h3 style="margin: 0 0 20px 0; color: #2c3e50; display: flex; align-items: center; gap: 8px;">
-							<span class="iconfont icon-refresh" style="font-size: 18px;"></span>
-							功能三：重置票数
-						</h3>
-						<p style="color: #6c757d; margin-bottom: 20px;">将票数重置为初始值（会自动备份当前数据）</p>
-						<div style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 15px; align-items: end;">
-							<div class="form-group">
+					<div id="vote-panel-reset" style="display: none; background: white; padding: 20px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
+						<p style="color: #6c757d; margin: 0 0 15px 0; font-size: 13px;">将票数重置为指定值</p>
+						<div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end;">
+							<div class="form-group" style="margin: 0;">
 								<label>重置为正方票数</label>
 								<input type="number" id="reset-left-votes" class="form-input" placeholder="默认：0" min="0" value="0">
 							</div>
-							<div class="form-group">
+							<div class="form-group" style="margin: 0;">
 								<label>重置为反方票数</label>
 								<input type="number" id="reset-right-votes" class="form-input" placeholder="默认：0" min="0" value="0">
 							</div>
-							<div style="display: flex; align-items: center; gap: 10px;">
-								<button class="btn btn-danger" id="reset-votes-btn" style="padding: 12px 30px; display: flex; align-items: center; gap: 6px; justify-content: center;">
-									<span class="iconfont icon-refresh" style="font-size: 16px;"></span>
-									重置票数
-								</button>
-								<span style="color: #6c757d; font-size: 12px; display: flex; align-items: center; gap: 4px;">
-									<span class="iconfont icon-warning" style="font-size: 14px;"></span>
-									当前数据会被备份
-								</span>
-							</div>
+							<button class="btn btn-danger btn-sm" id="reset-votes-btn" style="margin-bottom: 1px;">确认重置</button>
 						</div>
 					</div>
 					
@@ -678,23 +690,13 @@
 						</div>
 					</div>
 
-					<!-- 评委票数（独立表格） -->
+					<!-- 评委票数（独立表格） - 已隐藏 -->
+					<div style="display: none;">
+						<div id="judges-votes-table-body"></div>
+					</div>
+
 					<div style="background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
-						<h3 style="margin: 0 0 16px 0; color: #2c3e50; display: flex; align-items: center; gap: 8px;">
-							<img src="/static/iconfont/shuju.png" class="icon-img" alt="">
-							评委票数（独立管理）
-						</h3>
-
-						<div style="border: 1px solid #e9ecef; border-radius: 10px; overflow: hidden;">
-							<div style="display: grid; grid-template-columns: 1fr 1fr 150px; padding: 12px 14px; background: #f8fafc; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">
-								<div>评委席位</div>
-								<div>当前评委</div>
-								<div>票数</div>
-							</div>
-							<div id="judges-votes-table-body"></div>
-						</div>
-
-					<div style="margin-top: 20px; border: 1px solid #e9ecef; border-radius: 10px; overflow: hidden;">
+					<div style="margin-top: 0; border: 1px solid #e9ecef; border-radius: 10px; overflow: hidden;">
 						<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; padding: 12px 14px; background: #f8fafc; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;">
 							<div>评委</div>
 							<div>投票方向</div>

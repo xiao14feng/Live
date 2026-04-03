@@ -100,6 +100,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 		logoutBtn.addEventListener('click', logoutAdmin);
 	}
 
+	// user角色只显示投票菜单，admin角色隐藏投票菜单
+	const role = getCurrentAdminRole();
+	if (role === 'user') {
+		// 隐藏所有菜单项，只保留投票
+		document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
+			const page = item.getAttribute('data-page');
+			if (page !== 'judge-vote') {
+				item.style.display = 'none';
+			}
+		});
+		// 直接跳到投票页
+		setTimeout(() => navigateTo('judge-vote'), 100);
+	} else if (role === 'admin') {
+		// 管理员隐藏投票菜单
+		document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
+			if (item.getAttribute('data-page') === 'judge-vote') {
+				item.style.display = 'none';
+			}
+		});
+	}
+
 	initNavigation();
 	
 	// 🔧 修复：先加载流列表，再加载 Dashboard（因为后端现在要求必须传递 stream_id）
@@ -722,13 +743,8 @@ function loadPageData(page) {
 			loadUsers();
 			break;
 		case 'votes':
-			if (currentLiveStatus) {
-				loadVotes();
-				startVotesAutoRefresh();
-			} else {
-				stopVotesAutoRefresh();
-				document.getElementById('votes-container') && (document.getElementById('votes-container').innerHTML = '<div style="color: #FF9800; padding: 40px 0; text-align: center;">直播未开始，无需实时监控票数～</div>');
-			}
+			loadVotes();
+			startVotesAutoRefresh();
 			break;
 		case 'judges':
 			if (typeof initJudgesManagement === 'function') {
@@ -2093,11 +2109,14 @@ async function loadUsers() {
 						<span class="badge ${roleInfo.className}">${roleInfo.label}</span>
 					</div>
 				</td>
-				<td><img src="${avatarSrc}" class="avatar-img" onerror="this.src='${placeholderSvg}'; this.onerror=null;"></td>
+				<td><img src="/static/iconfont/blue-user.png" class="avatar-img" style="width:40px;height:40px;border-radius:50%;object-fit:cover;background:#e3f2fd;padding:4px;"></td>
 				<td>${joinTime ? new Date(joinTime).toLocaleString() : '-'}</td>
 				<td><span class="badge ${userStatus === 'online' || userStatus === 'active' ? 'success' : 'secondary'}">${userStatus === 'online' || userStatus === 'active' ? '在线' : '离线'}</span></td>
 				<td>
-					<button class="btn btn-sm btn-secondary" onclick='viewUser("${safeUserId}")'>查看</button>
+					<div style="display: flex; gap: 6px;">
+						<button class="btn btn-sm btn-primary" onclick='editUserName("${safeUserId}", "${String(nickname).replace(/"/g, '&quot;').replace(/'/g, '&#39;')}") '>修改</button>
+						<button class="btn btn-sm btn-danger" onclick='deleteUser("${safeUserId}")'>删除</button>
+					</div>
 				</td>
 			`;
 			tbody.appendChild(row);
@@ -2124,6 +2143,80 @@ function viewUser(id) {
 	alert(`查看用户 ${id} 的详细信息`);
 }
 
+function showAddUserForm() {
+	document.getElementById('add-user-form').style.display = 'block';
+	document.getElementById('new-user-name').focus();
+}
+
+function hideAddUserForm() {
+	document.getElementById('add-user-form').style.display = 'none';
+	document.getElementById('new-user-name').value = '';
+	document.getElementById('new-user-role').value = 'user';
+}
+
+async function submitAddUser() {
+	const name = document.getElementById('new-user-name').value.trim();
+	const role = document.getElementById('new-user-role').value;
+	if (!name) {
+		showNotification('请输入用户姓名', 'warning');
+		return;
+	}
+	try {
+		const response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/admin/users`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ nickname: name, role: role })
+		});
+		if (response.ok) {
+			showNotification('用户添加成功', 'success');
+			hideAddUserForm();
+			loadUsers();
+		} else {
+			const data = await response.json();
+			showNotification(data.message || '添加失败', 'error');
+		}
+	} catch (e) {
+		showNotification('添加失败: ' + e.message, 'error');
+	}
+}
+
+async function editUserName(userId, currentName) {
+	const newName = prompt(`修改用户名：`, currentName);
+	if (!newName || newName.trim() === currentName) return;
+	try {
+		const response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/admin/users/${userId}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ nickname: newName.trim() })
+		});
+		if (response.ok) {
+			showNotification('用户名修改成功', 'success');
+			loadUsers();
+		} else {
+			showNotification('修改失败', 'error');
+		}
+	} catch (e) {
+		showNotification('修改失败: ' + e.message, 'error');
+	}
+}
+
+async function deleteUser(userId) {
+	if (!confirm('确认删除该用户？此操作不可撤销！')) return;
+	try {
+		const response = await fetch(`${SERVER_CONFIG.BASE_URL}/api/admin/users/${userId}`, {
+			method: 'DELETE'
+		});
+		if (response.ok) {
+			showNotification('用户已删除', 'success');
+			loadUsers();
+		} else {
+			showNotification('删除失败', 'error');
+		}
+	} catch (e) {
+		showNotification('删除失败: ' + e.message, 'error');
+	}
+}
+
 function openVoteDisplay() {
 	// 获取当前选择的流ID
 	const streamId = document.getElementById('votes-stream-select')?.value
@@ -2135,21 +2228,54 @@ function openVoteDisplay() {
 	window.open(url, '_blank');
 }
 
+function toggleVotePanel(type) {
+	const panels = ['set', 'add', 'reset'];
+	panels.forEach(p => {
+		const el = document.getElementById(`vote-panel-${p}`);
+		if (el) el.style.display = (p === type && el.style.display === 'none') ? 'block' : 'none';
+	});
+}
+
 // ==================== 票数管理 ====================
 async function loadVotes() {
 	try {
-		console.log('🔄 开始加载票数...');
-		// 🔧 修复：根据票数管理页面选择的流加载数据
 		const votesStreamSelect = document.getElementById('votes-stream-select');
 		const selectedStreamId = votesStreamSelect?.value;
 		
-		console.log('📋 选中的流ID:', selectedStreamId);
-		
 		if (!selectedStreamId) {
-			// 如果没有选择流，显示提示
-			const container = document.getElementById('votes-container');
-			if (container) {
-				container.innerHTML = '<div style="color: #FF9800; padding: 40px 0; text-align: center;">请先选择要管理的直播流</div>';
+			// 未选择流时，加载全部投票汇总
+			const res = await fetch(`${SERVER_CONFIG.BASE_URL}/api/v1/admin/votes/all`);
+			const result = await res.json();
+			const data = result?.data;
+			if (data) {
+				document.getElementById('admin-left-votes').textContent = data.leftVotes || 0;
+				document.getElementById('admin-right-votes').textContent = data.rightVotes || 0;
+				document.getElementById('admin-total-votes').textContent = data.totalVotes || 0;
+				document.getElementById('admin-vote-percentage').textContent =
+					`正方: ${data.leftPercentage || 50}% | 反方: ${data.rightPercentage || 50}%`;
+				
+				// 显示汇总说明
+				const judgeContainer = document.getElementById('judge-vote-records');
+				const userContainer = document.getElementById('user-vote-statistics');
+				if (judgeContainer) judgeContainer.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">请选择具体直播流查看评委投票记录</div>';
+				if (userContainer) {
+					userContainer.innerHTML = `
+						<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+							<div style="padding: 20px; border: 2px solid #e9ecef; border-radius: 8px; text-align: center; background: #f8f9fa;">
+								<div style="font-size: 13px; color: #6c757d; margin-bottom: 8px;">总投票人数</div>
+								<div style="font-size: 32px; font-weight: 600; color: #495057;">${data.userTotalCount || 0}</div>
+							</div>
+							<div style="padding: 20px; border: 2px solid #27ae60; border-radius: 8px; text-align: center; background: #d4edda;">
+								<div style="font-size: 13px; color: #6c757d; margin-bottom: 8px;">投正方人数</div>
+								<div style="font-size: 32px; font-weight: 600; color: #27ae60;">${data.userLeftCount || 0}</div>
+							</div>
+							<div style="padding: 20px; border: 2px solid #3498db; border-radius: 8px; text-align: center; background: #d1ecf1;">
+								<div style="font-size: 13px; color: #6c757d; margin-bottom: 8px;">投反方人数</div>
+								<div style="font-size: 32px; font-weight: 600; color: #3498db;">${data.userRightCount || 0}</div>
+							</div>
+						</div>
+					`;
+				}
 			}
 			return;
 		}
@@ -2306,12 +2432,8 @@ async function loadVoteRecords(streamId) {
 let votesTimer = null;
 function startVotesAutoRefresh() {
     if (votesTimer) clearInterval(votesTimer);
-    if (!currentLiveStatus) return;
     loadVotes();
-    votesTimer = setInterval(() => {
-        if (!currentLiveStatus) return;
-        loadVotes();
-    }, 10000);
+    votesTimer = setInterval(() => loadVotes(), 15000);
 }
 function stopVotesAutoRefresh() {
     if (votesTimer) clearInterval(votesTimer);

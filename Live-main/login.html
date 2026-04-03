@@ -292,12 +292,13 @@
                 }
                 return '/admin?role=judge';
             }
-            return '/';
+            // user角色也进入后台，直接跳到投票页
+            return '/admin#judge-vote';
         }
 
         function redirectLoggedInUser(userData) {
             const role = String(userData?.role || '').toLowerCase();
-            if (role === 'admin' || role === 'judge') {
+            if (role === 'admin' || role === 'judge' || role === 'user') {
                 window.location.replace(getLoginRedirectTarget(role));
                 return true;
             }

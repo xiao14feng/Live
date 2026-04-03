@@ -2,7 +2,7 @@
 用户认证API路由
 处理微信登录、用户管理等功能
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -168,41 +168,76 @@ async def get_user_detail(
     user_id: str,
     db: Session = Depends(get_db) if not is_cloudflare_env() else None
 ):
-    """
-    获取用户详情 (管理员接口)
-    
-    Args:
-        user_id: 用户ID
-    """
     try:
         if is_cloudflare_env():
-            # Cloudflare环境
-            # 这里需要实现D1数据库查询
             user_data = None
         else:
-            # 本地环境
             user = db.query(User).filter(User.id == user_id).first()
             user_data = user.to_dict() if user else None
         
         if not user_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="用户不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
         
-        return ApiResponse(
-            success=True,
-            data=user_data,
-            message="获取用户详情成功"
-        )
-        
+        return ApiResponse(success=True, data=user_data, message="获取用户详情成功")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取用户详情失败: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"获取用户详情失败: {str(e)}")
+
+
+@router.post("/admin/users")
+async def create_user(request: Request, db: Session = Depends(get_db)):
+    """添加用户"""
+    import uuid
+    body = await request.json()
+    nickname = body.get("nickname", "").strip()
+    role = body.get("role", "user")
+    if not nickname:
+        raise HTTPException(status_code=400, detail="用户名不能为空")
+    user = User(
+        id=str(uuid.uuid4()),
+        openid=f"{role}_{str(uuid.uuid4())[:8]}",
+        nickname=nickname,
+        role=role,
+        status="offline"
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"success": True, "message": "用户添加成功", "data": user.to_dict()}
+
+
+@router.put("/admin/users/{user_id}")
+async def update_user(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """修改用户名"""
+    body = await request.json()
+    nickname = body.get("nickname", "").strip()
+    if not nickname:
+        raise HTTPException(status_code=400, detail="用户名不能为空")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    user.nickname = nickname
+    db.commit()
+    return {"success": True, "message": "用户名修改成功"}
+
+
+@router.delete("/admin/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """删除用户"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    db.delete(user)
+    db.commit()
+    return {"success": True, "message": "用户已删除"}
 
 
 @router.get("/admin/miniprogram/users", response_model=UserStatsResponse)

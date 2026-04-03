@@ -493,6 +493,54 @@ app.get('/api/admin/users/:id', async (req, res) => {
 	}
 });
 
+// 添加用户
+app.post('/api/admin/users', async (req, res) => {
+	try {
+		const response = await fetch(`${BACKEND_BASE_URL}/api/admin/users`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(req.body)
+		});
+		const payload = await response.json();
+		if (!response.ok) return res.status(response.status).json(payload);
+		res.json(payload);
+	} catch (error) {
+		res.status(500).json({ success: false, message: '添加用户失败' });
+	}
+});
+
+// 修改用户名
+app.put('/api/admin/users/:id', async (req, res) => {
+	try {
+		const response = await fetch(`${BACKEND_BASE_URL}/api/admin/users/${req.params.id}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ nickname: req.body.nickname })
+		});
+		const payload = await response.json();
+		if (!response.ok) return res.status(response.status).json(payload);
+		res.json({ success: true, message: '用户名修改成功' });
+	} catch (error) {
+		res.status(500).json({ success: false, message: '修改失败' });
+	}
+});
+
+// 删除用户
+app.delete('/api/admin/users/:id', async (req, res) => {
+	try {
+		const response = await fetch(`${BACKEND_BASE_URL}/api/admin/users/${req.params.id}`, {
+			method: 'DELETE'
+		});
+		if (response.ok || response.status === 204) {
+			return res.json({ success: true, message: '用户已删除' });
+		}
+		const payload = await response.json();
+		res.status(response.status).json(payload);
+	} catch (error) {
+		res.status(500).json({ success: false, message: '删除失败' });
+	}
+});
+
 // 获取当前辩题（小程序调用）- 完整实现见下方 API路由 部分
 
 // 添加直播状态控制 API
@@ -1220,6 +1268,17 @@ app.get('/api/v1/admin/judge-votes', async (req, res) => {
 	} catch (error) {
 		console.error('获取投票记录失败:', error);
 		res.status(500).json({ success: false, message: '获取投票记录失败' });
+	}
+});
+
+// 全部流投票汇总
+app.get('/api/v1/admin/votes/all', async (req, res) => {
+	try {
+		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/admin/votes/all`);
+		const payload = await response.json();
+		res.json(payload);
+	} catch (error) {
+		res.status(500).json({ success: false, message: '获取全部投票数据失败' });
 	}
 });
 

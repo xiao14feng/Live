@@ -401,6 +401,45 @@ async def get_admin_judge_votes(
     }
 
 
+@router.get("/v1/admin/votes/all")
+async def get_all_votes(db: Session = Depends(get_db)):
+    """获取所有流的投票汇总"""
+    from sqlalchemy import func
+    # 用户投票
+    user_agg = db.query(
+        func.sum(VoteRecord.left_votes).label('left'),
+        func.sum(VoteRecord.right_votes).label('right'),
+        func.count(VoteRecord.id).label('count')
+    ).first()
+    # 评委投票
+    judge_left = db.query(JudgeVote).filter(JudgeVote.side == 'left').count()
+    judge_right = db.query(JudgeVote).filter(JudgeVote.side == 'right').count()
+
+    user_left = int(user_agg.left or 0)
+    user_right = int(user_agg.right or 0)
+    user_count = int(user_agg.count or 0)
+    total = user_count + judge_left + judge_right
+    left_total = user_left + judge_left
+    right_total = user_right + judge_right
+    grand_total = left_total + right_total
+    return {
+        "success": True,
+        "data": {
+            "userLeftCount": user_left,
+            "userRightCount": user_right,
+            "userTotalCount": user_count,
+            "judgeLeftCount": judge_left,
+            "judgeRightCount": judge_right,
+            "judgeTotalCount": judge_left + judge_right,
+            "leftVotes": left_total,
+            "rightVotes": right_total,
+            "totalVotes": grand_total,
+            "leftPercentage": round((left_total / grand_total) * 100) if grand_total > 0 else 50,
+            "rightPercentage": round((right_total / grand_total) * 100) if grand_total > 0 else 50,
+        }
+    }
+
+
 @router.get("/v1/admin/user-vote-stats")
 async def get_user_vote_stats(
     stream_id: str = Query(..., description="直播流ID"),
