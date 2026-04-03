@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const app = express();
 const cors = require('cors');
 const https = require('https');
@@ -6,13 +6,13 @@ const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 const serverCfg = require('./config/server-mode.node.js');
 const { getCurrentServerConfig, printConfig } = serverCfg;
-const BACKEND_BASE_URL = 'http://localhost:8000';
+const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || 'http://localhost:8000';
 
 const currentConfig = getCurrentServerConfig();
-const port = currentConfig.port; // 直接使用配置中的端口（mock和非mock模式都已配置为8080）
+const port = currentConfig.port; // 直接使用配置中的端口（mock和非mock模式都已配置�?080�?
 
 // ==================== WebSocket 支持 ====================
-// 尝试加载 ws 模块（如果未安装需要运行: npm install ws）
+// 尝试加载 ws 模块（如果未安装需要运�? npm install ws�?
 let WebSocketServer;
 try {
 	const ws = require('ws');
@@ -25,7 +25,7 @@ try {
 // WebSocket 客户端连接池
 const wsClients = new Set();
 
-// 创建 HTTP 服务器（用于支持 WebSocket）
+// 创建 HTTP 服务器（用于支持 WebSocket�?
 const server = http.createServer(app);
 let wss = null;
 
@@ -33,16 +33,16 @@ if (WebSocketServer) {
 	wss = new WebSocketServer({ server, path: '/ws' });
 	
 	wss.on('connection', (ws, req) => {
-		console.log('✅ WebSocket 客户端已连接:', req.socket.remoteAddress);
+		console.log('�?WebSocket 客户端已连接:', req.socket.remoteAddress);
 		wsClients.add(ws);
 		
-		// 发送欢迎消息和当前状态
+		// 发送欢迎消息和当前状�?
 		ws.send(JSON.stringify({
 			type: 'connected',
 			message: '已连接到实时数据服务'
 		}));
 		
-		// 发送当前状态
+		// 发送当前状�?
 		broadcastCurrentState(ws);
 		
 		ws.on('message', (message) => {
@@ -55,7 +55,7 @@ if (WebSocketServer) {
 		});
 		
 		ws.on('close', () => {
-			console.log('❌ WebSocket 客户端已断开');
+			console.log('�?WebSocket 客户端已断开');
 			wsClients.delete(ws);
 		});
 		
@@ -73,7 +73,7 @@ function handleWebSocketMessage(ws, data) {
 			ws.send(JSON.stringify({ type: 'pong' }));
 			break;
 		case 'control-live':
-			// 后台管理系统控制直播状态
+			// 后台管理系统控制直播状�?
 			handleLiveControl(data);
 			break;
 		case 'update-debate':
@@ -81,7 +81,7 @@ function handleWebSocketMessage(ws, data) {
 			handleDebateUpdate(data);
 			break;
 		default:
-			console.log('未知的 WebSocket 消息类型:', data.type);
+			console.log('未知�?WebSocket 消息类型:', data.type);
 	}
 }
 
@@ -106,9 +106,9 @@ function broadcastCurrentState(ws) {
 	if (!ws || ws.readyState !== 1) return;
 	
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		const dashboard = db.statistics.getDashboard();
-		const debate = db.debate.get();
+		
+		const dashboard = { isLive: false, totalVotes: 0 };
+		const debate = { title: '', leftPosition: '', rightPosition: '' } /* use backend API */;
 		
 		ws.send(JSON.stringify({
 			type: 'state',
@@ -121,19 +121,19 @@ function broadcastCurrentState(ws) {
 			timestamp: Date.now()
 		}));
 	} catch (error) {
-		console.error('发送当前状态失败:', error);
+		console.error('发送当前状态失�?', error);
 	}
 }
 
 // 处理直播控制
 function handleLiveControl(data) {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		const { action } = data; // 'start' 或 'stop'
+		
+		const { action } = data; // 'start' �?'stop'
 		
 		if (action === 'start') {
-			// 开启直播
-			const activeStream = db.streams.getActive();
+			// 开启直�?
+			const activeStream = null /* use backend API */;
 			if (activeStream) {
 				broadcast('live-status-changed', {
 					status: 'started',
@@ -171,41 +171,44 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// ==================== 后台管理路由（必须在代理之前） ====================
+// ==================== 后台管理路由（必须在代理之前�?====================
 const path = require('path');
 // 支持本地和Railway两种环境
-// 本地：网关在 live-gateway-main/，前端在 ../Live-main/
-// Railway：根目录设为 live-gateway-main/，前端在 ../Live-main/ 或通过环境变量指定
 const frontendRoot = process.env.FRONTEND_ROOT 
 	? path.resolve(process.env.FRONTEND_ROOT)
 	: path.resolve(__dirname, '..', 'Live-main');
 const frontendAdminDir = path.join(frontendRoot, 'admin');
+// 网关自带的db.js（用于生产环境）
+const fs = require('fs');
 const frontendStaticDir = path.join(frontendRoot, 'static');
 
 // 提供主页面（根路由）
 app.get('/', (req, res) => {
-	res.sendFile(path.join(frontendRoot, 'index.html'));
+	const _idx = path.join(frontendRoot, 'index.html'); if (fs.existsSync(_idx)) { res.sendFile(_idx); } else { res.json({ status: 'ok', message: 'Live Debate Gateway API' }); }
 });
 
 // 提供后台管理页面
 app.get('/admin', (req, res) => {
-	res.sendFile(path.join(frontendAdminDir, 'index.html'));
+	const _adm = path.join(frontendAdminDir, 'index.html'); if (fs.existsSync(_adm)) { res.sendFile(_adm); } else { res.json({ status: 'ok' }); }
 });
 
-// 提供后台管理静态资源
-app.use('/admin', express.static(frontendAdminDir));
+// 提供后台管理静态资�?
+if (fs.existsSync(frontendAdminDir)) { app.use('/admin', express.static(frontendAdminDir)); }
 
-// 提供静态资源（图标、动画等）
-app.use('/static', express.static(frontendStaticDir));
+// 提供静态资源（图标、动画等�?
+if (fs.existsSync(frontendStaticDir)) { app.use('/static', express.static(frontendStaticDir)); }
 
 // 提供所有其他静态文件（CSS、JS等）
-app.use(express.static(frontendRoot));
+if (fs.existsSync(frontendRoot)) { app.use(express.static(frontendRoot)); }
 // ==================== 后台管理路由结束 ====================
 
-// ==================== 后台管理 API（必须在代理之前） ====================
-const db = require(path.join(frontendAdminDir, 'db.js'));
+// ==================== 内存存储 ====================
+let liveSchedule = { streamId: null, scheduledStartTime: null, scheduledEndTime: null };
 
-// 管理API - 直播流管理（代理 Python 后端）
+// ==================== 后台管理 API ====================
+
+
+// 管理API - 直播流管理（代理 Python 后端�?
 app.get('/api/admin/streams', async (req, res) => {
 	try {
 		const searchParams = new URLSearchParams();
@@ -220,8 +223,8 @@ app.get('/api/admin/streams', async (req, res) => {
 		}
 		res.json(payload);
 	} catch (error) {
-		console.error('获取直播流列表失败:', error);
-		res.status(500).json({ success: false, error: '获取直播流列表失败' });
+		console.error('获取直播流列表失�?', error);
+		res.status(500).json({ success: false, error: '获取直播流列表失�? });
 	}
 });
 
@@ -239,8 +242,8 @@ app.get('/api/v1/admin/streams', async (req, res) => {
 		}
 		res.json(payload);
 	} catch (error) {
-		console.error('获取直播流列表失败:', error);
-		res.status(500).json({ success: false, error: '获取直播流列表失败' });
+		console.error('获取直播流列表失�?', error);
+		res.status(500).json({ success: false, error: '获取直播流列表失�? });
 	}
 });
 
@@ -273,8 +276,8 @@ app.post('/api/admin/streams', async (req, res) => {
 		}
 		res.json(payload);
 	} catch (error) {
-		console.error('创建直播流失败:', error);
-		res.status(500).json({ success: false, error: '创建直播流失败' });
+		console.error('创建直播流失�?', error);
+		res.status(500).json({ success: false, error: '创建直播流失�? });
 	}
 });
 
@@ -307,8 +310,8 @@ app.post('/api/v1/admin/streams', async (req, res) => {
 		}
 		res.json(payload);
 	} catch (error) {
-		console.error('创建直播流失败:', error);
-		res.status(500).json({ success: false, error: '创建直播流失败' });
+		console.error('创建直播流失�?', error);
+		res.status(500).json({ success: false, error: '创建直播流失�? });
 	}
 });
 
@@ -336,8 +339,8 @@ app.put('/api/admin/streams/:id', async (req, res) => {
 		}
 		res.json(payload);
 	} catch (error) {
-		console.error('更新直播流失败:', error);
-		res.status(500).json({ success: false, error: '更新直播流失败' });
+		console.error('更新直播流失�?', error);
+		res.status(500).json({ success: false, error: '更新直播流失�? });
 	}
 });
 
@@ -352,8 +355,8 @@ app.delete('/api/admin/streams/:id', async (req, res) => {
 		}
 		res.json(payload);
 	} catch (error) {
-		console.error('删除直播流失败:', error);
-		res.status(500).json({ success: false, error: '删除直播流失败' });
+		console.error('删除直播流失�?', error);
+		res.status(500).json({ success: false, error: '删除直播流失�? });
 	}
 });
 
@@ -391,15 +394,15 @@ app.post('/api/admin/streams/:id/toggle', async (req, res) => {
 		}
 		res.json(payload);
 	} catch (error) {
-		console.error('切换直播流状态失败:', error);
-		res.status(500).json({ success: false, error: '切换直播流状态失败' });
+		console.error('切换直播流状态失�?', error);
+		res.status(500).json({ success: false, error: '切换直播流状态失�? });
 	}
 });
 
 // 管理API - 辩论设置
 app.get('/api/admin/debate', (req, res) => {
 	try {
-		const debate = db.debate.get();
+		const debate = { title: '', leftPosition: '', rightPosition: '' } /* use backend API */;
 		res.json(debate);
 	} catch (error) {
 		console.error('获取辩论设置失败:', error);
@@ -409,12 +412,12 @@ app.get('/api/admin/debate', (req, res) => {
 
 app.put('/api/admin/debate', (req, res) => {
 	try {
-		const debate = db.debate.update(req.body);
+		const debate = req.body /* use backend API */;
 		// 同步更新内存中的辩题
 		debateTopic.title = debate.title;
 		debateTopic.description = debate.description;
 		
-		// 广播辩论设置更新给所有客户端（包括小程序）
+		// 广播辩论设置更新给所有客户端（包括小程序�?
 		broadcast('debate-updated', {
 			debate: debate,
 			timestamp: Date.now()
@@ -477,7 +480,7 @@ app.get('/api/admin/users/:id', async (req, res) => {
 
 		const user = payload?.data;
 		if (!user) {
-			return res.status(404).json({ error: '用户不存在' });
+			return res.status(404).json({ error: '用户不存�? });
 		}
 		res.json({
 			id: user.id,
@@ -514,7 +517,7 @@ app.post('/api/admin/users', async (req, res) => {
 	}
 });
 
-// 修改用户名
+// 修改用户�?
 app.put('/api/admin/users/:id', async (req, res) => {
 	try {
 		const response = await fetch(`${BACKEND_BASE_URL}/api/admin/users/${req.params.id}`, {
@@ -524,7 +527,7 @@ app.put('/api/admin/users/:id', async (req, res) => {
 		});
 		const payload = await response.json();
 		if (!response.ok) return res.status(response.status).json(payload);
-		res.json({ success: true, message: '用户名修改成功' });
+		res.json({ success: true, message: '用户名修改成�? });
 	} catch (error) {
 		res.status(500).json({ success: false, message: '修改失败' });
 	}
@@ -537,7 +540,7 @@ app.delete('/api/admin/users/:id', async (req, res) => {
 			method: 'DELETE'
 		});
 		if (response.ok || response.status === 204) {
-			return res.json({ success: true, message: '用户已删除' });
+			return res.json({ success: true, message: '用户已删�? });
 		}
 		const payload = await response.json();
 		res.status(response.status).json(payload);
@@ -546,9 +549,9 @@ app.delete('/api/admin/users/:id', async (req, res) => {
 	}
 });
 
-// 获取当前辩题（小程序调用）- 完整实现见下方 API路由 部分
+// 获取当前辩题（小程序调用�? 完整实现见下�?API路由 部分
 
-// 添加直播状态控制 API
+// 添加直播状态控�?API
 let globalLiveStatus = {
 	isLive: false,
 	streamUrl: null,
@@ -560,11 +563,11 @@ let globalLiveStatus = {
 	startTime: null
 };
 
-// 每个流的独立直播状态（支持多流同时管理）
+// 每个流的独立直播状态（支持多流同时管理�?
 // 格式: { streamId: { isLive: true/false, liveId: 'xxx', startTime: 'xxx', streamUrl: 'xxx' } }
 let streamLiveStatuses = {};
 
-// 添加AI识别状态管理
+// 添加AI识别状态管�?
 let globalAIStatus = {
 	status: 'stopped',  // stopped / running / paused
 	aiSessionId: null,
@@ -582,20 +585,20 @@ let globalAIStatus = {
 	}
 };
 
-// 定时检查直播计划
+// 定时检查直播计�?
 let liveScheduleTimer = null;
 
 function checkLiveSchedule() {
-	const db = require(path.join(frontendAdminDir, 'db.js'));
-	const schedule = db.liveSchedule.get();
+	
+	const schedule = liveSchedule;
 	const now = Date.now();
 	
 	if (schedule.isScheduled && schedule.scheduledStartTime) {
 		const startTime = new Date(schedule.scheduledStartTime).getTime();
 		
-		// 如果到了开始时间且还未开始
+		// 如果到了开始时间且还未开�?
 		if (now >= startTime && !globalLiveStatus.isLive) {
-			console.log('⏰ 定时开始直播');
+			console.log('�?定时开始直�?);
 			startScheduledLive(schedule);
 		}
 		
@@ -603,7 +606,7 @@ function checkLiveSchedule() {
 		if (schedule.scheduledEndTime && globalLiveStatus.isLive) {
 			const endTime = new Date(schedule.scheduledEndTime).getTime();
 			if (now >= endTime) {
-				console.log('⏰ 定时结束直播');
+				console.log('�?定时结束直播');
 				stopLive();
 			}
 		}
@@ -615,33 +618,33 @@ function startScheduleCheck() {
 	if (liveScheduleTimer) {
 		clearInterval(liveScheduleTimer);
 	}
-	liveScheduleTimer = setInterval(checkLiveSchedule, 60000); // 每分钟检查一次
+	liveScheduleTimer = setInterval(checkLiveSchedule, 60000); // 每分钟检查一�?
 }
 
-// 启动计划的直播
+// 启动计划的直�?
 function startScheduledLive(schedule) {
-	const db = require(path.join(frontendAdminDir, 'db.js'));
+	
 	
 	try {
 		let streamUrl = null;
 		
-		// 获取直播流
+		// 获取直播�?
 		if (schedule.streamId) {
-			const stream = db.streams.getById(schedule.streamId);
+			const stream = null /* use backend API */;
 			if (stream && stream.enabled) {
 				streamUrl = stream.url;
 			}
 		}
 		
 		if (!streamUrl) {
-			const activeStream = db.streams.getActive();
+			const activeStream = null /* use backend API */;
 			if (activeStream) {
 				streamUrl = activeStream.url;
 			}
 		}
 		
 		if (!streamUrl) {
-			console.error('❌ 没有可用的直播流');
+			console.error('�?没有可用的直播流');
 			return;
 		}
 		
@@ -649,7 +652,7 @@ function startScheduledLive(schedule) {
 		globalLiveStatus.streamUrl = streamUrl;
 		globalLiveStatus.streamId = schedule.streamId;
 		
-		// 广播直播状态变化
+		// 广播直播状态变�?
 		broadcast('live-status-changed', {
 			status: 'started',
 			streamUrl: globalLiveStatus.streamUrl,
@@ -657,7 +660,7 @@ function startScheduledLive(schedule) {
 			scheduled: true
 		});
 		
-		console.log('✅ 直播已开始:', streamUrl);
+		console.log('�?直播已开�?', streamUrl);
 	} catch (error) {
 		console.error('启动计划直播失败:', error);
 	}
@@ -670,19 +673,19 @@ function stopLive() {
 	globalLiveStatus.streamId = null;
 	
 	// 清除计划
-	const db = require(path.join(frontendAdminDir, 'db.js'));
-	db.liveSchedule.clear();
+	
+	liveSchedule = { streamId: null, scheduledStartTime: null, scheduledEndTime: null };
 	globalLiveStatus.isScheduled = false;
 	globalLiveStatus.scheduledStartTime = null;
 	globalLiveStatus.scheduledEndTime = null;
 	
-	// 广播直播状态变化
+	// 广播直播状态变�?
 	broadcast('live-status-changed', {
 		status: 'stopped',
 		timestamp: Date.now()
 	});
 	
-		console.log('🛑 直播已停止');
+		console.log('🛑 直播已停�?);
 }
 
 // 管理端直播控制接口（管理员专用）
@@ -692,8 +695,8 @@ app.post('/api/admin/live/control', (req, res) => {
 		
 		if (action === 'start') {
 			if (!streamUrl) {
-				const db = require(path.join(frontendAdminDir, 'db.js'));
-				const activeStream = db.streams.getActive();
+				
+				const activeStream = null /* use backend API */;
 				if (!activeStream) {
 					return res.status(400).json({ error: '没有可用的直播流' });
 				}
@@ -703,7 +706,7 @@ app.post('/api/admin/live/control', (req, res) => {
 			}
 			globalLiveStatus.isLive = true;
 			
-			// 广播直播状态变化
+			// 广播直播状态变�?
 			broadcast('live-status-changed', {
 				status: 'started',
 				streamUrl: globalLiveStatus.streamUrl,
@@ -715,10 +718,10 @@ app.post('/api/admin/live/control', (req, res) => {
 			stopLive();
 			res.json({ success: true, status: 'stopped' });
 		} else {
-			res.status(400).json({ error: '无效的操作' });
+			res.status(400).json({ error: '无效的操�? });
 		}
 	} catch (error) {
-		console.error('控制直播状态失败:', error);
+		console.error('控制直播状态失�?', error);
 		res.status(500).json({ error: '操作失败' });
 	}
 });
@@ -729,27 +732,27 @@ app.post('/api/live/control', (req, res) => {
 		const { action, streamId } = req.body;
 		
 		if (action === 'start') {
-			const db = require(path.join(frontendAdminDir, 'db.js'));
+			
 			let selectedStream = null;
 			
-			// 如果指定了streamId，使用指定的直播流
+			// 如果指定了streamId，使用指定的直播�?
 			if (streamId) {
-				selectedStream = db.streams.getById(streamId);
+				selectedStream = null /* use backend API */;
 				if (!selectedStream) {
 					return res.status(400).json({ 
 						success: false,
-						message: '指定的直播流不存在' 
+						message: '指定的直播流不存�? 
 					});
 				}
 				if (!selectedStream.enabled) {
 					return res.status(400).json({ 
 						success: false,
-						message: '指定的直播流未启用' 
+						message: '指定的直播流未启�? 
 					});
 				}
 			} else {
 				// 否则使用启用的直播流
-				selectedStream = db.streams.getActive();
+				selectedStream = null /* use backend API */;
 				if (!selectedStream) {
 					return res.status(400).json({ 
 						success: false,
@@ -758,7 +761,7 @@ app.post('/api/live/control', (req, res) => {
 				}
 			}
 			
-			// 开始直播
+			// 开始直�?
 			globalLiveStatus.isLive = true;
 			globalLiveStatus.streamUrl = selectedStream.url;
 			globalLiveStatus.streamId = selectedStream.id;
@@ -766,10 +769,10 @@ app.post('/api/live/control', (req, res) => {
 			globalLiveStatus.scheduledStartTime = null;
 			globalLiveStatus.scheduledEndTime = null;
 			
-			// 清除之前的计划
-			db.liveSchedule.clear();
+			// 清除之前的计�?
+			liveSchedule = { streamId: null, scheduledStartTime: null, scheduledEndTime: null };
 			
-			// 广播直播状态变化
+			// 广播直播状态变�?
 			broadcast('live-status-changed', {
 				status: 'started',
 				streamUrl: globalLiveStatus.streamUrl,
@@ -777,11 +780,11 @@ app.post('/api/live/control', (req, res) => {
 				startedBy: 'user'
 			});
 			
-			console.log('✅ 用户启动直播:', selectedStream.name, selectedStream.url);
+			console.log('�?用户启动直播:', selectedStream.name, selectedStream.url);
 			
 			res.json({ 
 				success: true, 
-				message: '直播已开始',
+				message: '直播已开�?,
 				data: {
 					status: 'started',
 					streamUrl: globalLiveStatus.streamUrl,
@@ -791,10 +794,10 @@ app.post('/api/live/control', (req, res) => {
 			});
 		} else if (action === 'stop') {
 			stopLive();
-			console.log('✅ 用户停止直播');
+			console.log('�?用户停止直播');
 			res.json({ 
 				success: true, 
-				message: '直播已停止',
+				message: '直播已停�?,
 				data: {
 					status: 'stopped'
 				}
@@ -802,11 +805,11 @@ app.post('/api/live/control', (req, res) => {
 		} else {
 			res.status(400).json({ 
 				success: false,
-				message: '无效的操作，action 必须是 "start" 或 "stop"' 
+				message: '无效的操作，action 必须�?"start" �?"stop"' 
 			});
 		}
 	} catch (error) {
-		console.error('用户控制直播状态失败:', error);
+		console.error('用户控制直播状态失�?', error);
 		res.status(500).json({ 
 			success: false,
 			message: '操作失败: ' + error.message 
@@ -817,38 +820,38 @@ app.post('/api/live/control', (req, res) => {
 // 设置直播计划
 app.post('/api/admin/live/schedule', (req, res) => {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
+		
 		const { scheduledStartTime, scheduledEndTime, streamId } = req.body;
 		
 		if (!scheduledStartTime) {
-			return res.status(400).json({ error: '请设置直播开始时间' });
+			return res.status(400).json({ error: '请设置直播开始时�? });
 		}
 		
 		const startTime = new Date(scheduledStartTime).getTime();
 		const now = Date.now();
 		
 		if (startTime <= now) {
-			return res.status(400).json({ error: '开始时间必须晚于当前时间' });
+			return res.status(400).json({ error: '开始时间必须晚于当前时�? });
 		}
 		
-		// 验证直播流
+		// 验证直播�?
 		if (streamId) {
-			const stream = db.streams.getById(streamId);
+			const stream = null /* use backend API */;
 			if (!stream) {
-				return res.status(400).json({ error: '指定的直播流不存在' });
+				return res.status(400).json({ error: '指定的直播流不存�? });
 			}
 			if (!stream.enabled) {
-				return res.status(400).json({ error: '指定的直播流未启用' });
+				return res.status(400).json({ error: '指定的直播流未启�? });
 			}
 		} else {
-			const activeStream = db.streams.getActive();
+			const activeStream = null /* use backend API */;
 			if (!activeStream) {
 				return res.status(400).json({ error: '没有可用的直播流' });
 			}
 		}
 		
 		// 保存计划
-		const schedule = db.liveSchedule.update({
+		const schedule = Object.assign(liveSchedule, {
 			scheduledStartTime,
 			scheduledEndTime: scheduledEndTime || null,
 			streamId: streamId || null,
@@ -860,7 +863,7 @@ app.post('/api/admin/live/schedule', (req, res) => {
 		globalLiveStatus.streamId = streamId || null;
 		globalLiveStatus.isScheduled = true;
 		
-		// 启动定时检查
+		// 启动定时检�?
 		startScheduleCheck();
 		
 		// 广播计划更新
@@ -871,7 +874,7 @@ app.post('/api/admin/live/schedule', (req, res) => {
 		
 		res.json({
 			success: true,
-			message: '直播计划已设置',
+			message: '直播计划已设�?,
 			data: schedule
 		});
 	} catch (error) {
@@ -883,8 +886,8 @@ app.post('/api/admin/live/schedule', (req, res) => {
 // 获取直播计划
 app.get('/api/admin/live/schedule', (req, res) => {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		const schedule = db.liveSchedule.get();
+		
+		const schedule = liveSchedule;
 		res.json({
 			success: true,
 			data: schedule
@@ -897,8 +900,8 @@ app.get('/api/admin/live/schedule', (req, res) => {
 // 取消直播计划
 app.post('/api/admin/live/schedule/cancel', (req, res) => {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		db.liveSchedule.clear();
+		
+		liveSchedule = { streamId: null, scheduledStartTime: null, scheduledEndTime: null };
 		
 		globalLiveStatus.isScheduled = false;
 		globalLiveStatus.scheduledStartTime = null;
@@ -911,7 +914,7 @@ app.post('/api/admin/live/schedule/cancel', (req, res) => {
 		
 		res.json({
 			success: true,
-			message: '直播计划已取消'
+			message: '直播计划已取�?
 		});
 	} catch (error) {
 		res.status(500).json({ error: '取消失败' });
@@ -920,21 +923,21 @@ app.post('/api/admin/live/schedule/cancel', (req, res) => {
 
 app.get('/api/admin/live/status', (req, res) => {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		const schedule = db.liveSchedule.get();
 		
-		// 获取启用的直播流（即使直播未开始，也返回启用的流地址）
+		const schedule = liveSchedule;
+		
+		// 获取启用的直播流（即使直播未开始，也返回启用的流地址�?
 		let activeStream = null;
 		try {
-			activeStream = db.streams.getActive();
+			activeStream = null /* use backend API */;
 		} catch (error) {
-			console.warn('获取启用直播流失败:', error);
+			console.warn('获取启用直播流失�?', error);
 		}
 		
 		res.json({
 			...globalLiveStatus,
 			schedule: schedule,
-			// 如果直播未开始但有启用的流，返回流地址以便小程序使用
+			// 如果直播未开始但有启用的流，返回流地址以便小程序使�?
 			activeStreamUrl: activeStream ? activeStream.url : null,
 			activeStreamId: activeStream ? activeStream.id : null,
 			activeStreamName: activeStream ? activeStream.name : null
@@ -944,31 +947,31 @@ app.get('/api/admin/live/status', (req, res) => {
 	}
 });
 
-// 一次性设置并开始直播（整合API）
+// 一次性设置并开始直播（整合API�?
 app.post('/api/admin/live/setup-and-start', (req, res) => {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
+		
 		const { streamId, scheduledStartTime, scheduledEndTime, startNow } = req.body;
 		
-		// 验证直播流
+		// 验证直播�?
 		let selectedStream = null;
 		if (streamId) {
-			selectedStream = db.streams.getById(streamId);
+			selectedStream = null /* use backend API */;
 			if (!selectedStream) {
-				return res.status(400).json({ error: '指定的直播流不存在' });
+				return res.status(400).json({ error: '指定的直播流不存�? });
 			}
 			if (!selectedStream.enabled) {
-				return res.status(400).json({ error: '指定的直播流未启用' });
+				return res.status(400).json({ error: '指定的直播流未启�? });
 			}
 		} else {
-			selectedStream = db.streams.getActive();
+			selectedStream = null /* use backend API */;
 			if (!selectedStream) {
 				return res.status(400).json({ error: '没有可用的直播流' });
 			}
 		}
 		
 		if (startNow) {
-			// 立即开始直播
+			// 立即开始直�?
 			globalLiveStatus.isLive = true;
 			globalLiveStatus.streamUrl = selectedStream.url;
 			globalLiveStatus.streamId = selectedStream.id;
@@ -976,10 +979,10 @@ app.post('/api/admin/live/setup-and-start', (req, res) => {
 			globalLiveStatus.scheduledStartTime = null;
 			globalLiveStatus.scheduledEndTime = null;
 			
-			// 清除之前的计划
-			db.liveSchedule.clear();
+			// 清除之前的计�?
+			liveSchedule = { streamId: null, scheduledStartTime: null, scheduledEndTime: null };
 			
-			// 广播直播状态变化
+			// 广播直播状态变�?
 			broadcast('live-status-changed', {
 				status: 'started',
 				streamUrl: globalLiveStatus.streamUrl,
@@ -989,7 +992,7 @@ app.post('/api/admin/live/setup-and-start', (req, res) => {
 			
 			res.json({
 				success: true,
-				message: '直播已开始',
+				message: '直播已开�?,
 				data: {
 					isLive: true,
 					streamUrl: globalLiveStatus.streamUrl,
@@ -997,20 +1000,20 @@ app.post('/api/admin/live/setup-and-start', (req, res) => {
 				}
 			});
 		} else {
-			// 设置定时开始
+			// 设置定时开�?
 			if (!scheduledStartTime) {
-				return res.status(400).json({ error: '请设置直播开始时间' });
+				return res.status(400).json({ error: '请设置直播开始时�? });
 			}
 			
 			const startTime = new Date(scheduledStartTime).getTime();
 			const now = Date.now();
 			
 			if (startTime <= now) {
-				return res.status(400).json({ error: '开始时间必须晚于当前时间' });
+				return res.status(400).json({ error: '开始时间必须晚于当前时�? });
 			}
 			
 			// 保存计划
-			const schedule = db.liveSchedule.update({
+			const schedule = Object.assign(liveSchedule, {
 				scheduledStartTime,
 				scheduledEndTime: scheduledEndTime || null,
 				streamId: selectedStream.id,
@@ -1022,7 +1025,7 @@ app.post('/api/admin/live/setup-and-start', (req, res) => {
 			globalLiveStatus.streamId = selectedStream.id;
 			globalLiveStatus.isScheduled = true;
 			
-			// 启动定时检查
+			// 启动定时检�?
 			startScheduleCheck();
 			
 			// 广播计划更新
@@ -1033,12 +1036,12 @@ app.post('/api/admin/live/setup-and-start', (req, res) => {
 			
 			res.json({
 				success: true,
-				message: '直播计划已设置',
+				message: '直播计划已设�?,
 				data: schedule
 			});
 		}
 	} catch (error) {
-		console.error('设置并开始直播失败:', error);
+		console.error('设置并开始直播失�?', error);
 		res.status(500).json({ error: '操作失败' });
 	}
 });
@@ -1070,13 +1073,13 @@ app.put('/api/admin/votes', (req, res) => {
 		const { leftVotes, rightVotes } = req.body;
 		
 		if (typeof leftVotes !== 'undefined' && typeof leftVotes !== 'number') {
-			return res.status(400).json({ error: 'leftVotes 必须是数字' });
+			return res.status(400).json({ error: 'leftVotes 必须是数�? });
 		}
 		if (typeof rightVotes !== 'undefined' && typeof rightVotes !== 'number') {
-			return res.status(400).json({ error: 'rightVotes 必须是数字' });
+			return res.status(400).json({ error: 'rightVotes 必须是数�? });
 		}
 		if ((typeof leftVotes !== 'undefined' && leftVotes < 0) || (typeof rightVotes !== 'undefined' && rightVotes < 0)) {
-			return res.status(400).json({ error: '票数不能为负数' });
+			return res.status(400).json({ error: '票数不能为负�? });
 		}
 		
 		if (typeof leftVotes !== 'undefined') {
@@ -1136,7 +1139,7 @@ app.post('/api/admin/votes/reset', (req, res) => {
 		
 		res.json({
 			success: true,
-			message: '票数已重置'
+			message: '票数已重�?
 		});
 	} catch (error) {
 		res.status(500).json({ error: '重置票数失败' });
@@ -1199,14 +1202,14 @@ app.post('/api/v1/admin/judges', async (req, res) => {
 	}
 });
 
-// 查询评委投票状态
+// 查询评委投票状�?
 app.get('/api/v1/judge-vote/status', async (req, res) => {
 	try {
 		const streamId = req.query.stream_id;
 		const userId = req.query.user_id;
 		
 		if (!streamId || !userId) {
-			return res.status(400).json({ success: false, message: '缺少 stream_id 或 user_id 参数' });
+			return res.status(400).json({ success: false, message: '缺少 stream_id �?user_id 参数' });
 		}
 		
 		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/judge-vote/status?stream_id=${streamId}&user_id=${userId}`);
@@ -1218,8 +1221,8 @@ app.get('/api/v1/judge-vote/status', async (req, res) => {
 		
 		res.json(payload);
 	} catch (error) {
-		console.error('查询投票状态失败:', error);
-		res.status(500).json({ success: false, message: '查询投票状态失败' });
+		console.error('查询投票状态失�?', error);
+		res.status(500).json({ success: false, message: '查询投票状态失�? });
 	}
 });
 
@@ -1276,7 +1279,7 @@ app.get('/api/v1/admin/judge-votes', async (req, res) => {
 	}
 });
 
-// 全部流投票汇总
+// 全部流投票汇�?
 app.get('/api/v1/admin/votes/all', async (req, res) => {
 	try {
 		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/admin/votes/all`);
@@ -1287,7 +1290,7 @@ app.get('/api/v1/admin/votes/all', async (req, res) => {
 	}
 });
 
-// 用户投票统计（按人数）
+// 用户投票统计（按人数�?
 app.get('/api/v1/admin/user-vote-stats', async (req, res) => {
 	try {
 		const streamId = req.query.stream_id;
@@ -1322,14 +1325,14 @@ app.get('/api/v1/vote-count', async (req, res) => {
 	}
 });
 
-// 查询用户投票状态
+// 查询用户投票状�?
 app.get('/api/v1/user-votes', async (req, res) => {
 	try {
 		const streamId = req.query.stream_id;
 		const userId = req.query.user_id;
 		
 		if (!streamId || !userId) {
-			return res.status(400).json({ success: false, message: '缺少 stream_id 或 user_id 参数' });
+			return res.status(400).json({ success: false, message: '缺少 stream_id �?user_id 参数' });
 		}
 		
 		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/user-votes?stream_id=${streamId}&user_id=${userId}`);
@@ -1341,8 +1344,8 @@ app.get('/api/v1/user-votes', async (req, res) => {
 		
 		res.json(payload);
 	} catch (error) {
-		console.error('查询用户投票状态失败:', error);
-		res.status(500).json({ success: false, message: '查询用户投票状态失败' });
+		console.error('查询用户投票状态失�?', error);
+		res.status(500).json({ success: false, message: '查询用户投票状态失�? });
 	}
 });
 
@@ -1380,19 +1383,19 @@ app.post('/api/v1/user-vote', async (req, res) => {
 	}
 });
 
-// ==================== v1 API 路由（兼容新版本前端） ====================
+// ==================== v1 API 路由（兼容新版本前端�?====================
 // 这些路由与上面的路由功能相同，但使用 /api/v1 前缀，支持认证token
 
 // v1: 获取AI内容列表（必须在 /api/admin/ai-content/:id 之前定义，避免路由冲突）
 app.get('/api/v1/admin/ai-content/list', (req, res) => {
-	console.log('✅ v1 AI内容列表路由被调用:', req.query);
+	console.log('�?v1 AI内容列表路由被调�?', req.query);
 	try {
 		const page = parseInt(req.query.page) || 1;
 		const pageSize = parseInt(req.query.pageSize) || 20;
 		const startTime = req.query.startTime || null;
 		const endTime = req.query.endTime || null;
 		
-		// 验证pageSize最大值
+		// 验证pageSize最大�?
 		if (pageSize > 100) {
 			return res.status(400).json({
 				success: false,
@@ -1400,7 +1403,7 @@ app.get('/api/v1/admin/ai-content/list', (req, res) => {
 			});
 		}
 		
-		// 从 aiDebateContent 数组中获取数据
+		// �?aiDebateContent 数组中获取数�?
 		let filteredContent = [...aiDebateContent];
 		
 		// 按时间过滤（如果有提供）
@@ -1425,9 +1428,9 @@ app.get('/api/v1/admin/ai-content/list', (req, res) => {
 		const end = start + pageSize;
 		const paginatedContent = filteredContent.slice(start, end);
 		
-		// 转换为文档格式
+		// 转换为文档格�?
 		const items = paginatedContent.map(item => {
-			// 计算评论数
+			// 计算评论�?
 			const commentCount = (item.comments && Array.isArray(item.comments)) ? item.comments.length : 0;
 			
 			// 转换timestamp为ISO格式
@@ -1448,14 +1451,14 @@ app.get('/api/v1/admin/ai-content/list', (req, res) => {
 			return {
 				id: item.id,
 				content: item.content || item.text || '', // 优先使用content，如果没有则使用text
-				type: 'summary', // 固定值
+				type: 'summary', // 固定�?
 				timestamp: timestampISO,
 				position: item.position || item.side || 'left', // side转换为position
-				confidence: item.confidence || 0.95, // 默认置信度
+				confidence: item.confidence || 0.95, // 默认置信�?
 				statistics: {
 					views: item.statistics?.views || item.views || 0,
 					likes: item.statistics?.likes || item.likes || 0,
-					comments: commentCount // 只返回数量，不返回详细评论
+					comments: commentCount // 只返回数量，不返回详细评�?
 				}
 			};
 		});
@@ -1486,7 +1489,7 @@ app.get('/api/admin/ai-content/list', (req, res) => {
 		const startTime = req.query.startTime || null;
 		const endTime = req.query.endTime || null;
 		
-		// 从 aiDebateContent 数组中获取数据
+		// �?aiDebateContent 数组中获取数�?
 		let filteredContent = [...aiDebateContent];
 		
 		// 按时间过滤（如果有提供）
@@ -1535,7 +1538,7 @@ app.get('/api/admin/ai-content/:id', (req, res) => {
 		const content = aiDebateContent.find(item => item.id === id);
 		
 		if (!content) {
-			return res.status(404).json({ error: '内容不存在' });
+			return res.status(404).json({ error: '内容不存�? });
 		}
 		
 		res.json({
@@ -1547,7 +1550,7 @@ app.get('/api/admin/ai-content/:id', (req, res) => {
 	}
 });
 
-// 获取AI内容评论列表（必须在 /api/admin/ai-content/:id/comments/:commentId 之前定义）
+// 获取AI内容评论列表（必须在 /api/admin/ai-content/:id/comments/:commentId 之前定义�?
 app.get('/api/admin/ai-content/:id/comments', (req, res) => {
 	try {
 		const { id } = req.params;
@@ -1560,16 +1563,16 @@ app.get('/api/admin/ai-content/:id/comments', (req, res) => {
 		if (!content) {
 			return res.status(404).json({
 				success: false,
-				message: 'AI内容不存在'
+				message: 'AI内容不存�?
 			});
 		}
 		
-		// 获取评论列表（从 content.comments 或 content.items.comments）
+		// 获取评论列表（从 content.comments �?content.items.comments�?
 		let comments = [];
 		if (content.comments && Array.isArray(content.comments)) {
 			comments = content.comments;
 		} else if (content.items && Array.isArray(content.items)) {
-			// 如果评论在 items 数组中
+			// 如果评论�?items 数组�?
 			const contentItem = content.items.find(item => item.id === id);
 			if (contentItem && contentItem.comments) {
 				comments = contentItem.comments;
@@ -1616,7 +1619,7 @@ app.delete('/api/admin/ai-content/:id/comments/:commentId', (req, res) => {
 		if (!content) {
 			return res.status(404).json({
 				success: false,
-				message: 'AI内容不存在'
+				message: 'AI内容不存�?
 			});
 		}
 		
@@ -1632,7 +1635,7 @@ app.delete('/api/admin/ai-content/:id/comments/:commentId', (req, res) => {
 		if (commentIndex === -1) {
 			return res.status(404).json({
 				success: false,
-				message: '评论不存在'
+				message: '评论不存�?
 			});
 		}
 		
@@ -1652,7 +1655,7 @@ app.delete('/api/admin/ai-content/:id/comments/:commentId', (req, res) => {
 			// broadcast('comment-deleted', { contentId: id, commentId: commentId });
 		}
 		
-		console.log(`🗑️  已删除评论: ${commentId}, 原因: ${reason || '管理员删除'}`);
+		console.log(`🗑�? 已删除评�? ${commentId}, 原因: ${reason || '管理员删�?}`);
 		
 		res.json({
 			success: true,
@@ -1661,7 +1664,7 @@ app.delete('/api/admin/ai-content/:id/comments/:commentId', (req, res) => {
 				commentId: commentId,
 				deleted: true
 			},
-			message: '评论已删除',
+			message: '评论已删�?,
 			timestamp: Date.now()
 		});
 		
@@ -1681,7 +1684,7 @@ app.get('/api/v1/admin/ai-content/:id/comments', (req, res) => {
 		const page = parseInt(req.query.page) || 1;
 		const pageSize = parseInt(req.query.pageSize) || 20;
 		
-		// 验证pageSize最大值
+		// 验证pageSize最大�?
 		if (pageSize > 100) {
 			return res.status(400).json({
 				success: false,
@@ -1695,17 +1698,17 @@ app.get('/api/v1/admin/ai-content/:id/comments', (req, res) => {
 		if (!content) {
 			return res.status(404).json({
 				success: false,
-				message: 'AI内容不存在'
+				message: 'AI内容不存�?
 			});
 		}
 		
-		// 获取评论列表（从 content.comments）
+		// 获取评论列表（从 content.comments�?
 		let comments = [];
 		if (content.comments && Array.isArray(content.comments)) {
 			comments = content.comments;
 		}
 		
-		// 按时间倒序排序（最新的在前）
+		// 按时间倒序排序（最新的在前�?
 		comments.sort((a, b) => {
 			const timeA = a.timestamp || a.time || 0;
 			const timeB = b.timestamp || b.time || 0;
@@ -1721,7 +1724,7 @@ app.get('/api/v1/admin/ai-content/:id/comments', (req, res) => {
 		const end = start + pageSize;
 		const paginatedComments = comments.slice(start, end);
 		
-		// 转换为文档格式
+		// 转换为文档格�?
 		const formattedComments = paginatedComments.map(comment => {
 			// 转换timestamp为ISO格式
 			let timestampISO = '';
@@ -1732,13 +1735,13 @@ app.get('/api/v1/admin/ai-content/:id/comments', (req, res) => {
 					timestampISO = new Date(comment.timestamp).toISOString();
 				}
 			} else if (comment.time) {
-				// 如果只有time字段（如"刚刚"、"3分钟前"），使用当前时间
+				// 如果只有time字段（如"刚刚"�?3分钟�?），使用当前时间
 				timestampISO = new Date().toISOString();
 			} else {
 				timestampISO = new Date().toISOString();
 			}
 			
-			// 判断是否为匿名用户
+			// 判断是否为匿名用�?
 			const userId = comment.userId || 
 				(comment.user === '匿名用户' || !comment.user ? 'anonymous' : null) || 
 				'anonymous';
@@ -1787,7 +1790,7 @@ app.delete('/api/v1/admin/ai-content/:id/comments/:commentId', (req, res) => {
 		if (!content) {
 			return res.status(404).json({
 				success: false,
-				message: 'AI内容不存在'
+				message: 'AI内容不存�?
 			});
 		}
 		
@@ -1797,7 +1800,7 @@ app.delete('/api/v1/admin/ai-content/:id/comments/:commentId', (req, res) => {
 			comments = content.comments;
 		}
 		
-		// 查找评论（支持commentId或id字段）
+		// 查找评论（支持commentId或id字段�?
 		const commentIndex = comments.findIndex(c => {
 			const cId = c.commentId || c.id;
 			return cId === commentId || String(cId) === String(commentId);
@@ -1836,7 +1839,7 @@ app.delete('/api/v1/admin/ai-content/:id/comments/:commentId', (req, res) => {
 			});
 		}
 		
-		console.log(`🗑️  已删除评论: ${commentId}, 原因: ${reason || '管理员删除'}`);
+		console.log(`🗑�? 已删除评�? ${commentId}, 原因: ${reason || '管理员删�?}`);
 		
 		// 按照文档格式返回响应
 		res.json({
@@ -1844,9 +1847,9 @@ app.delete('/api/v1/admin/ai-content/:id/comments/:commentId', (req, res) => {
 			data: {
 				commentId: commentId,
 				contentId: id,
-				deleteTime: null // 由前端填充当前时间
+				deleteTime: null // 由前端填充当前时�?
 			},
-			message: '评论已删除'
+			message: '评论已删�?
 		});
 		
 	} catch (error) {
@@ -1867,7 +1870,7 @@ app.post('/api/admin/ai-content', (req, res) => {
 		}
 		
 		if (side !== 'left' && side !== 'right') {
-			return res.status(400).json({ error: 'side 必须是 "left" 或 "right"' });
+			return res.status(400).json({ error: 'side 必须�?"left" �?"right"' });
 		}
 		
 		const newContent = {
@@ -1882,7 +1885,7 @@ app.post('/api/admin/ai-content', (req, res) => {
 		
 		aiDebateContent.push(newContent);
 		
-		// 广播新内容添加
+		// 广播新内容添�?
 		broadcast('newAIContent', {
 			...newContent,
 			updatedBy: 'admin'
@@ -1904,7 +1907,7 @@ app.put('/api/admin/ai-content/:id', (req, res) => {
 		
 		const index = aiDebateContent.findIndex(item => item.id === id);
 		if (index === -1) {
-			return res.status(404).json({ error: '内容不存在' });
+			return res.status(404).json({ error: '内容不存�? });
 		}
 		
 		if (text !== undefined) {
@@ -1912,7 +1915,7 @@ app.put('/api/admin/ai-content/:id', (req, res) => {
 		}
 		if (side !== undefined) {
 			if (side !== 'left' && side !== 'right') {
-				return res.status(400).json({ error: 'side 必须是 "left" 或 "right"' });
+				return res.status(400).json({ error: 'side 必须�?"left" �?"right"' });
 			}
 			aiDebateContent[index].side = side;
 		}
@@ -1941,7 +1944,7 @@ app.delete('/api/admin/ai-content/:id', (req, res) => {
 		const index = aiDebateContent.findIndex(item => item.id === id);
 		
 		if (index === -1) {
-			return res.status(404).json({ error: '内容不存在' });
+			return res.status(404).json({ error: '内容不存�? });
 		}
 		
 		const deletedContent = aiDebateContent.splice(index, 1)[0];
@@ -1967,10 +1970,10 @@ app.delete('/api/admin/ai-content/:id', (req, res) => {
 // ==================== 统计 API（只读） ====================
 app.get('/api/admin/statistics/summary', (req, res) => {
     try {
-        const db = require(path.join(frontendAdminDir, 'db.js'));
-        const stats = db.statistics.get();
-        const users = db.users.getAll();
-        const streams = db.streams.getAll();
+        
+        const stats = { totalVotes: 0, dailyStats: [] };
+        const users = [] /* use backend API */;
+        const streams = [] /* use backend API */;
         const totalVotes = stats.totalVotes || 0;
         const totalUsers = users.length;
         const totalStreams = streams.length;
@@ -1985,14 +1988,14 @@ app.get('/api/admin/statistics/summary', (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ error: '获取统计汇总失败' });
+        res.status(500).json({ error: '获取统计汇总失�? });
     }
 });
 
 app.get('/api/admin/statistics/daily', (req, res) => {
     try {
-        const db = require(path.join(frontendAdminDir, 'db.js'));
-        const stats = db.statistics.get();
+        
+        const stats = { totalVotes: 0, dailyStats: [] };
         const daily = Array.isArray(stats.dailyStats) ? stats.dailyStats : [];
         res.json({ success: true, data: daily });
     } catch (error) {
@@ -2016,10 +2019,10 @@ app.get('/api/v1/admin/dashboard', async (req, res) => {
 		const response = await fetch(`${BACKEND_BASE_URL}/api/v1/votes?stream_id=${streamId}`);
 		const voteData = await response.json();
 		
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		const users = db.users.getAll();
-		const debate = db.debate.get();
-		const streams = db.streams.getAll();
+		
+		const users = [] /* use backend API */;
+		const debate = { title: '', leftPosition: '', rightPosition: '' } /* use backend API */;
+		const streams = [] /* use backend API */;
 		const stream = streams.find(s => s.id === streamId);
 		
 		const leftVotes = voteData.data?.leftVotes || 0;
@@ -2028,7 +2031,7 @@ app.get('/api/v1/admin/dashboard', async (req, res) => {
 		const leftPercentage = totalVotes > 0 ? Math.round((leftVotes / totalVotes) * 100) : 50;
 		const rightPercentage = totalVotes > 0 ? Math.round((rightVotes / totalVotes) * 100) : 50;
 		
-		// 检查该流是否正在直播
+		// 检查该流是否正在直�?
 		const isLive = globalLiveStatus.isLive && globalLiveStatus.streamId === streamId;
 		
 		// 计算直播时长
@@ -2078,11 +2081,11 @@ app.get('/api/v1/admin/dashboard', async (req, res) => {
 	}
 });
 
-// 获取所有流的观看人数
+// 获取所有流的观看人�?
 app.get('/api/v1/admin/live/viewers', (req, res) => {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		const streams = db.streams.getAll();
+		
+		const streams = [] /* use backend API */;
 		
 		// 返回所有流的观看人数（目前简化为返回WebSocket连接数）
 		const viewers = streams.map(stream => ({
@@ -2111,7 +2114,7 @@ app.get('/api/v1/admin/live/viewers', (req, res) => {
 // ==================== 辩论流程配置 ====================
 const DEBATE_FLOW_FILE = path.join(__dirname, 'data', 'debate-flow.json');
 
-// 从文件加载配置
+// 从文件加载配�?
 function loadDebateFlowFromFile() {
 	try {
 		if (require('fs').existsSync(DEBATE_FLOW_FILE)) {
@@ -2121,7 +2124,7 @@ function loadDebateFlowFromFile() {
 	return {};
 }
 
-// 保存配置到文件
+// 保存配置到文�?
 function saveDebateFlowToFile(configs) {
 	try {
 		const dir = path.dirname(DEBATE_FLOW_FILE);
@@ -2158,7 +2161,7 @@ app.post('/api/admin/debate-flow', (req, res) => {
 	debateFlowConfigs[stream_id] = { ...(debateFlowConfigs[stream_id] || {}), streamId: stream_id, segments: segments || [], updatedAt: new Date().toISOString() };
 	saveDebateFlowToFile(debateFlowConfigs);
 	broadcast('debate-flow-updated', { streamId: stream_id, segments });
-	res.json({ success: true, message: '辩论流程配置已保存', data: debateFlowConfigs[stream_id] });
+	res.json({ success: true, message: '辩论流程配置已保�?, data: debateFlowConfigs[stream_id] });
 });
 
 app.post('/api/admin/debate-flow/control', (req, res) => {
@@ -2187,11 +2190,11 @@ app.use((req, res, next) => {
 	next();
 });
 
-// 404处理器（API 路由）
+// 404处理器（API 路由�?
 app.use((req, res) => {
-	// 如果是 API 请求，返回 JSON 格式错误
+	// 如果�?API 请求，返�?JSON 格式错误
 	if (req.path.startsWith('/api')) {
-		console.log(`⚠️  API路由未找到: ${req.method} ${req.path}`);
+		console.log(`⚠️  API路由未找�? ${req.method} ${req.path}`);
 		res.status(404).json({
 			success: false,
 			error: 'Not Found',
@@ -2200,7 +2203,7 @@ app.use((req, res) => {
 		});
 	} else {
 		// 其他请求返回 404
-		console.log(`⚠️  路由未找到: ${req.method} ${req.url}`);
+		console.log(`⚠️  路由未找�? ${req.method} ${req.url}`);
 		res.status(404).json({
 			error: 'Not Found',
 			path: req.url,
@@ -2220,31 +2223,31 @@ let currentVotes = {
 const debateTopic = {
     id: 'debate-default-001', // 辩题ID，用于标识该辩题
     title: "如果有一个能一键消除痛苦的按钮，你会按吗？",
-    description: "这是一个关于痛苦、成长与人性选择的深度辩论"
+    description: "这是一个关于痛苦、成长与人性选择的深度辩�?
 };
 
-// AI智能识别的辩论内容
+// AI智能识别的辩论内�?
 const aiDebateContent = [
     {
         id: uuidv4(),
-        debate_id: debateTopic.id, // 标识该观点属于哪个辩题
-        text: "正方观点：痛苦是人生成长的必要经历，消除痛苦会让我们失去学习和成长的机会。",
+        debate_id: debateTopic.id, // 标识该观点属于哪个辩�?
+        text: "正方观点：痛苦是人生成长的必要经历，消除痛苦会让我们失去学习和成长的机会�?,
         side: "left",
-        timestamp: new Date().getTime() - 300000, // 5分钟前
+        timestamp: new Date().getTime() - 300000, // 5分钟�?
         comments: [
             {
                 id: uuidv4(),
                 user: "心理学家",
                 text: "痛苦确实能促进心理成长，但过度的痛苦也可能造成创伤",
-                time: "3分钟前",
+                time: "3分钟�?,
                 avatar: "🧠",
                 likes: 15
             },
             {
                 id: uuidv4(),
-                user: "哲学家",
-                text: "尼采说过，那些杀不死我们的，会让我们更强大",
-                time: "4分钟前",
+                user: "哲学�?,
+                text: "尼采说过，那些杀不死我们的，会让我们更强�?,
+                time: "4分钟�?,
                 avatar: "🤔",
                 likes: 23
             }
@@ -2253,24 +2256,24 @@ const aiDebateContent = [
     },
     {
         id: uuidv4(),
-        debate_id: debateTopic.id, // 标识该观点属于哪个辩题
-        text: "反方观点：如果能够消除痛苦，为什么不呢？痛苦本身没有价值，消除痛苦可以让人更专注于积极的事情。",
+        debate_id: debateTopic.id, // 标识该观点属于哪个辩�?
+        text: "反方观点：如果能够消除痛苦，为什么不呢？痛苦本身没有价值，消除痛苦可以让人更专注于积极的事情�?,
         side: "right",
-        timestamp: new Date().getTime() - 240000, // 4分钟前
+        timestamp: new Date().getTime() - 240000, // 4分钟�?
         comments: [
             {
                 id: uuidv4(),
                 user: "医生",
                 text: "作为医生，我见过太多不必要的痛苦，如果能消除，我支持",
-                time: "2分钟前",
-                avatar: "👨‍⚕️",
+                time: "2分钟�?,
+                avatar: "👨‍⚕�?,
                 likes: 18
             },
             {
                 id: uuidv4(),
-                user: "患者家属",
+                user: "患者家�?,
                 text: "看着亲人痛苦，我多么希望有这样的按钮",
-                time: "3分钟前",
+                time: "3分钟�?,
                 avatar: "💝",
                 likes: 31
             }
@@ -2279,16 +2282,16 @@ const aiDebateContent = [
     },
     {
         id: uuidv4(),
-        debate_id: debateTopic.id, // 标识该观点属于哪个辩题
+        debate_id: debateTopic.id, // 标识该观点属于哪个辩�?
         text: "正方回应：痛苦让我们学会同理心，如果所有人都没有痛苦经历，我们如何理解他人的苦难？",
         side: "left",
-        timestamp: new Date().getTime() - 180000, // 3分钟前
+        timestamp: new Date().getTime() - 180000, // 3分钟�?
         comments: [
             {
                 id: uuidv4(),
                 user: "社工",
-                text: "同理心确实需要痛苦的经历来培养",
-                time: "1分钟前",
+                text: "同理心确实需要痛苦的经历来培�?,
+                time: "1分钟�?,
                 avatar: "🤝",
                 likes: 12
             },
@@ -2296,7 +2299,7 @@ const aiDebateContent = [
                 id: uuidv4(),
                 user: "作家",
                 text: "很多伟大的文学作品都源于作者的痛苦经历",
-                time: "2分钟前",
+                time: "2分钟�?,
                 avatar: "📚",
                 likes: 19
             }
@@ -2305,23 +2308,23 @@ const aiDebateContent = [
     },
     {
         id: uuidv4(),
-        debate_id: debateTopic.id, // 标识该观点属于哪个辩题
-        text: "反方回应：我们可以通过其他方式培养同理心，比如阅读、教育。消除痛苦不等于消除所有负面情绪。",
+        debate_id: debateTopic.id, // 标识该观点属于哪个辩�?
+        text: "反方回应：我们可以通过其他方式培养同理心，比如阅读、教育。消除痛苦不等于消除所有负面情绪�?,
         side: "right",
-        timestamp: new Date().getTime() - 120000, // 2分钟前
+        timestamp: new Date().getTime() - 120000, // 2分钟�?
         comments: [
             {
                 id: uuidv4(),
-                user: "教育工作者",
-                text: "教育确实可以培养同理心，不一定需要亲身经历痛苦",
-                time: "1分钟前",
-                avatar: "👩‍🏫",
+                user: "教育工作�?,
+                text: "教育确实可以培养同理心，不一定需要亲身经历痛�?,
+                time: "1分钟�?,
+                avatar: "👩‍�?,
                 likes: 16
             },
             {
                 id: uuidv4(),
-                user: "心理咨询师",
-                text: "区分痛苦和负面情绪很重要，这个按钮可能只针对真正的痛苦",
+                user: "心理咨询�?,
+                text: "区分痛苦和负面情绪很重要，这个按钮可能只针对真正的痛�?,
                 time: "刚刚",
                 avatar: "💭",
                 likes: 8
@@ -2331,17 +2334,17 @@ const aiDebateContent = [
     },
     {
         id: uuidv4(),
-        debate_id: debateTopic.id, // 标识该观点属于哪个辩题
-        text: "正方总结：痛苦是人性的一部分，消除痛苦可能会让我们失去作为人的完整性。",
+        debate_id: debateTopic.id, // 标识该观点属于哪个辩�?
+        text: "正方总结：痛苦是人性的一部分，消除痛苦可能会让我们失去作为人的完整性�?,
         side: "left",
-        timestamp: new Date().getTime() - 60000, // 1分钟前
+        timestamp: new Date().getTime() - 60000, // 1分钟�?
         comments: [
             {
                 id: uuidv4(),
-                user: "神学家",
+                user: "神学�?,
                 text: "痛苦在宗教和哲学中都有其深层意义",
                 time: "刚刚",
-                avatar: "⛪",
+                avatar: "�?,
                 likes: 14
             }
         ],
@@ -2353,7 +2356,7 @@ const aiDebateContent = [
 function simulateVoteChanges() {
     setInterval(() => {
         if (!globalLiveStatus.isLive) return; // 只有直播时才模拟
-        // 随机增加票数，模拟观众投票
+        // 随机增加票数，模拟观众投�?
         const leftIncrease = Math.floor(Math.random() * 5) + 1;
         const rightIncrease = Math.floor(Math.random() * 5) + 1;
         
@@ -2361,26 +2364,26 @@ function simulateVoteChanges() {
         currentVotes.rightVotes += rightIncrease;
         
         console.log(`票数更新: 正方 ${currentVotes.leftVotes}, 反方 ${currentVotes.rightVotes}`);
-    }, 3000); // 每3秒更新一次
+    }, 3000); // �?秒更新一�?
 }
 
-// 模拟AI识别新内容
+// 模拟AI识别新内�?
 function simulateNewAIContent() {
     const newContents = [
         {
-            text: "正方补充：痛苦让我们珍惜快乐，没有对比就没有真正的幸福。",
+            text: "正方补充：痛苦让我们珍惜快乐，没有对比就没有真正的幸福�?,
             side: "left"
         },
         {
-            text: "反方补充：现代医学已经在消除很多痛苦，这个按钮只是技术的延伸。",
+            text: "反方补充：现代医学已经在消除很多痛苦，这个按钮只是技术的延伸�?,
             side: "right"
         },
         {
-            text: "正方质疑：如果所有人都按这个按钮，社会会变成什么样？",
+            text: "正方质疑：如果所有人都按这个按钮，社会会变成什么样�?,
             side: "left"
         },
         {
-            text: "反方回应：每个人都有自己的选择权，不应该强迫别人承受痛苦。",
+            text: "反方回应：每个人都有自己的选择权，不应该强迫别人承受痛苦�?,
             side: "right"
         }
     ];
@@ -2390,7 +2393,7 @@ function simulateNewAIContent() {
         const randomContent = newContents[Math.floor(Math.random() * newContents.length)];
         const newContent = {
             id: uuidv4(), // 使用UUID
-            debate_id: debateTopic.id, // 标识该观点属于哪个辩题
+            debate_id: debateTopic.id, // 标识该观点属于哪个辩�?
             text: randomContent.text,
             side: randomContent.side,
             timestamp: new Date().getTime(),
@@ -2400,7 +2403,7 @@ function simulateNewAIContent() {
         
         aiDebateContent.push(newContent);
         console.log(`新增AI内容: ${newContent.text}`);
-    }, 15000); // 每15秒添加新内容
+    }, 15000); // �?5秒添加新内容
 }
 
 // API路由
@@ -2426,7 +2429,7 @@ app.get('/api/votes', (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "获取票数时出错: " + error.message
+            message: "获取票数时出�? " + error.message
         });
     }
 });
@@ -2434,7 +2437,7 @@ app.get('/api/votes', (req, res) => {
 // 获取辩题信息
 app.get('/api/debate-topic', (req, res) => {
     try {
-        // 确保返回的辩题信息包含 id 字段
+        // 确保返回的辩题信息包�?id 字段
         res.json({
             success: true,
             data: {
@@ -2446,7 +2449,7 @@ app.get('/api/debate-topic', (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "获取辩题时出错: " + error.message
+            message: "获取辩题时出�? " + error.message
         });
     }
 });
@@ -2461,7 +2464,7 @@ app.get('/api/ai-content', (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "获取AI内容时出错: " + error.message
+            message: "获取AI内容时出�? " + error.message
         });
     }
 });
@@ -2474,7 +2477,7 @@ app.post('/api/comment', (req, res) => {
     if (!contentId || !text) {
         return res.status(400).json({
             success: false,
-            message: "缺少必要参数: contentId 和 text"
+            message: "缺少必要参数: contentId �?text"
         });
     }
 
@@ -2506,7 +2509,7 @@ app.post('/api/comment', (req, res) => {
     } else {
         res.status(404).json({
             success: false,
-            message: "内容不存在"
+            message: "内容不存�?
         });
     }
 });
@@ -2520,7 +2523,7 @@ app.delete('/api/comment/:commentId', (req, res) => {
     if (!commentId || !contentId) {
         return res.status(400).json({
             success: false,
-            message: "缺少必要参数: commentId 和 contentId"
+            message: "缺少必要参数: commentId �?contentId"
         });
     }
 
@@ -2528,7 +2531,7 @@ app.delete('/api/comment/:commentId', (req, res) => {
     if (!content) {
         return res.status(404).json({
             success: false,
-            message: "内容不存在"
+            message: "内容不存�?
         });
     }
 
@@ -2536,7 +2539,7 @@ app.delete('/api/comment/:commentId', (req, res) => {
     if (commentIndex === -1) {
         return res.status(404).json({
             success: false,
-            message: "评论不存在"
+            message: "评论不存�?
         });
     }
 
@@ -2554,7 +2557,7 @@ app.delete('/api/comment/:commentId', (req, res) => {
 
 // 点赞
 app.post('/api/like', (req, res) => {
-    console.log('✅ /api/like 路由被调用');
+    console.log('�?/api/like 路由被调�?);
     console.log('📥 请求参数:', { contentId: req.body.contentId, commentId: req.body.commentId });
     const { contentId, commentId } = req.body;
 
@@ -2580,7 +2583,7 @@ app.post('/api/like', (req, res) => {
             } else {
                 res.status(404).json({
                     success: false,
-                    message: "评论不存在"
+                    message: "评论不存�?
                 });
             }
         } else {
@@ -2594,7 +2597,7 @@ app.post('/api/like', (req, res) => {
     } else {
         res.status(404).json({
             success: false,
-            message: "内容不存在"
+            message: "内容不存�?
         });
     }
 });
@@ -2633,7 +2636,7 @@ function callWechatAPI(appid, secret, code) {
     });
 }
 
-// 微信配置（从统一配置文件获取）
+// 微信配置（从统一配置文件获取�?
 const WECHAT_CONFIG = {
     appid: currentConfig.wechat.appid,
     secret: process.env.WECHAT_SECRET || currentConfig.wechat.secret,
@@ -2653,26 +2656,26 @@ app.post('/api/wechat-login', async (req, res) => {
     }
 
     try {
-        console.log('═══════════════════════════════════════');
+        console.log('══════════════════════════════════════�?);
         console.log('微信登录请求收到');
-        console.log('═══════════════════════════════════════');
+        console.log('══════════════════════════════════════�?);
         console.log('Code:', code);
         console.log('UserInfo:', userInfo?.nickName);
         console.log('useMock 配置:', WECHAT_CONFIG.useMock);
-        console.log('═══════════════════════════════════════');
+        console.log('══════════════════════════════════════�?);
         
         let wechatData = null;
         
         // 根据配置决定使用模拟模式还是真实微信API
         if (WECHAT_CONFIG.useMock) {
-            // 使用模拟模式（用于开发测试或 H5 环境）
-            console.log('✅ 使用模拟微信登录响应（开发模式）');
+            // 使用模拟模式（用于开发测试或 H5 环境�?
+            console.log('�?使用模拟微信登录响应（开发模式）');
             
             // 模拟微信API响应
             wechatData = {
                 openid: 'mock_openid_' + Date.now(),
                 session_key: 'mock_session_key_' + Math.random().toString(36).substr(2, 9),
-                // 注意：真实API不会返回unionid，除非用户已绑定开放平台
+                // 注意：真实API不会返回unionid，除非用户已绑定开放平�?
             };
             
             console.log('模拟数据生成成功:', {
@@ -2687,15 +2690,15 @@ app.post('/api/wechat-login', async (req, res) => {
             try {
                 console.log('📋 微信登录配置信息:');
                 console.log('  - AppID:', WECHAT_CONFIG.appid);
-                console.log('  - Secret:', WECHAT_CONFIG.secret ? WECHAT_CONFIG.secret.substring(0, 8) + '...' : '未设置');
-                console.log('  - Code:', code ? code.substring(0, 20) + '...' : '未提供');
+                console.log('  - Secret:', WECHAT_CONFIG.secret ? WECHAT_CONFIG.secret.substring(0, 8) + '...' : '未设�?);
+                console.log('  - Code:', code ? code.substring(0, 20) + '...' : '未提�?);
                 
                 const apiResult = await callWechatAPI(WECHAT_CONFIG.appid, WECHAT_CONFIG.secret, code);
                 
-                // 检查微信API返回的错误
+                // 检查微信API返回的错�?
                 if (apiResult.errcode) {
-                    console.error('❌ 微信API返回错误:');
-                    console.error('  - 错误码:', apiResult.errcode);
+                    console.error('�?微信API返回错误:');
+                    console.error('  - 错误�?', apiResult.errcode);
                     console.error('  - 错误信息:', apiResult.errmsg);
                     console.error('  - 完整响应:', JSON.stringify(apiResult, null, 2));
                     
@@ -2735,7 +2738,7 @@ app.post('/api/wechat-login', async (req, res) => {
         }
         
         // 保存用户到数据库（在管理系统中显示）
-        const db = require(path.join(frontendAdminDir, 'db.js'));
+        
         const userId = wechatData.openid; // 使用openid作为用户ID
         if (userId) {
             db.users.createOrUpdate({
@@ -2745,7 +2748,7 @@ app.post('/api/wechat-login', async (req, res) => {
             });
         }
         
-        // 返回统一的响应格式
+        // 返回统一的响应格�?
         const response = {
             success: true,
             data: {
@@ -2778,24 +2781,24 @@ app.post('/api/wechat-login', async (req, res) => {
     }
 });
 
-// 用户投票（支持100票分配制）
+// 用户投票（支�?00票分配制�?
 app.post('/api/user-vote', (req, res) => {
-    console.log('═══════════════════════════════════════');
-    console.log('✅ /api/user-vote 路由被调用');
+    console.log('══════════════════════════════════════�?);
+    console.log('�?/api/user-vote 路由被调�?);
     console.log('📥 请求来源:', req.headers.origin || req.headers.referer || '未知');
     console.log('📥 请求方法:', req.method);
     console.log('📥 请求参数:', req.body);
-    console.log('📥 请求头:', {
+    console.log('📥 请求�?', {
         'content-type': req.headers['content-type'],
         'user-agent': req.headers['user-agent']?.substring(0, 50) + '...'
     });
-    console.log('═══════════════════════════════════════');
+    console.log('══════════════════════════════════════�?);
     
     const { side, votes, leftVotes, rightVotes, userId } = req.body;
 
-    // 支持两种格式：
+    // 支持两种格式�?
     // 格式1（增量投票）: { side: "left"|"right", votes: number }
-    // 格式2（100票分配）: { leftVotes: number, rightVotes: number }
+    // 格式2�?00票分配）: { leftVotes: number, rightVotes: number }
     
     let userLeftVotes = 0;
     let userRightVotes = 0;
@@ -2803,7 +2806,7 @@ app.post('/api/user-vote', (req, res) => {
     
     // 检测并解析不同格式
     if (leftVotes !== undefined && rightVotes !== undefined) {
-        // 格式2：100票分配制
+        // 格式2�?00票分配制
         voteMode = '100票分配制';
         userLeftVotes = parseInt(leftVotes) || 0;
         userRightVotes = parseInt(rightVotes) || 0;
@@ -2813,18 +2816,18 @@ app.post('/api/user-vote', (req, res) => {
         if (total !== 100) {
             return res.status(400).json({
                 success: false,
-                message: `票数分配错误: 正方 ${userLeftVotes} + 反方 ${userRightVotes} = ${total}，必须等于100`
+                message: `票数分配错误: 正方 ${userLeftVotes} + 反方 ${userRightVotes} = ${total}，必须等�?00`
             });
         }
         
         if (userLeftVotes < 0 || userLeftVotes > 100 || userRightVotes < 0 || userRightVotes > 100) {
             return res.status(400).json({
                 success: false,
-                message: "参数错误: 票数必须在 0-100 之间"
+                message: "参数错误: 票数必须�?0-100 之间"
             });
         }
         
-        console.log(`📊 100票分配制投票: 正方 ${userLeftVotes} 票, 反方 ${userRightVotes} 票`);
+        console.log(`📊 100票分配制投票: 正方 ${userLeftVotes} �? 反方 ${userRightVotes} 票`);
         
         // 100票分配制：直接累加用户的票数
         currentVotes.leftVotes += userLeftVotes;
@@ -2837,7 +2840,7 @@ app.post('/api/user-vote', (req, res) => {
         if (side !== 'left' && side !== 'right') {
             return res.status(400).json({
                 success: false,
-                message: "参数错误: side 必须为 'left' 或 'right'"
+                message: "参数错误: side 必须�?'left' �?'right'"
             });
         }
 
@@ -2845,7 +2848,7 @@ app.post('/api/user-vote', (req, res) => {
         if (voteCount < 1 || voteCount > 1000) {
             return res.status(400).json({
                 success: false,
-                message: "参数错误: 投票数量必须在 1-1000 之间"
+                message: "参数错误: 投票数量必须�?1-1000 之间"
             });
         }
         
@@ -2862,20 +2865,20 @@ app.post('/api/user-vote', (req, res) => {
     } else {
         return res.status(400).json({
             success: false,
-            message: "参数错误: 请提供 { leftVotes, rightVotes } 或 { side, votes }"
+            message: "参数错误: 请提�?{ leftVotes, rightVotes } �?{ side, votes }"
         });
     }
 
     // 更新数据库统计（如果已加载）
     try {
-        const db = require(path.join(frontendAdminDir, 'db.js'));
+        
         if (userId) {
             const totalUserVotes = userLeftVotes + userRightVotes;
             db.users.updateStats(userId, { votes: totalUserVotes });
         }
         db.statistics.incrementVotes(userLeftVotes + userRightVotes);
     } catch (error) {
-        // 如果数据库模块未加载，忽略错误
+        // 如果数据库模块未加载，忽略错�?
         console.log('统计数据更新跳过（开发模式）');
     }
 
@@ -2896,9 +2899,9 @@ app.post('/api/user-vote', (req, res) => {
         message: `投票成功 (${voteMode})`
     };
     
-    console.log(`✅ 投票成功！当前总票数: 正方 ${currentVotes.leftVotes} (${responseData.data.leftPercentage}%), 反方 ${currentVotes.rightVotes} (${responseData.data.rightPercentage}%)`);
+    console.log(`�?投票成功！当前总票�? 正方 ${currentVotes.leftVotes} (${responseData.data.leftPercentage}%), 反方 ${currentVotes.rightVotes} (${responseData.data.rightPercentage}%)`);
 
-    // 广播投票更新给所有 WebSocket 客户端（包括后台管理系统）
+    // 广播投票更新给所�?WebSocket 客户端（包括后台管理系统�?
     broadcast('votes-updated', {
         leftVotes: currentVotes.leftVotes,
         rightVotes: currentVotes.rightVotes,
@@ -2919,27 +2922,27 @@ app.post('/api/user-vote', (req, res) => {
 
 // ==================== 后台管理系统控制接口 ====================
 
-// 一、直播控制接口
+// 一、直播控制接�?
 
-// 1.1 开始直播
+// 1.1 开始直�?
 app.post('/api/admin/live/start', (req, res) => {
 	try {
 		const { streamId, autoStartAI = false, notifyUsers = true } = req.body;
 		
-		// 获取直播流
-		const db = require(path.join(frontendAdminDir, 'db.js'));
+		// 获取直播�?
+		
 		let stream = null;
 		
 		if (streamId) {
-			stream = db.streams.getById(streamId);
+			stream = null /* use backend API */;
 			if (!stream) {
 				return res.status(404).json({
 					success: false,
-					message: '指定的直播流不存在'
+					message: '指定的直播流不存�?
 				});
 			}
 		} else {
-			stream = db.streams.getActive();
+			stream = null /* use backend API */;
 			if (!stream) {
 				return res.status(400).json({
 					success: false,
@@ -2956,10 +2959,10 @@ app.post('/api/admin/live/start', (req, res) => {
 			});
 		}
 		
-		// ⚠️ 重要：停止所有其他正在直播的流
+		// ⚠️ 重要：停止所有其他正在直播的�?
 		for (const [otherStreamId, status] of Object.entries(streamLiveStatuses)) {
 			if (otherStreamId !== stream.id && status.isLive) {
-				console.log(`🛑 自动停止其他直播流: ${otherStreamId}`);
+				console.log(`🛑 自动停止其他直播�? ${otherStreamId}`);
 				streamLiveStatuses[otherStreamId].isLive = false;
 				streamLiveStatuses[otherStreamId].stopTime = new Date().toISOString();
 				
@@ -2976,7 +2979,7 @@ app.post('/api/admin/live/start', (req, res) => {
 		const liveId = uuidv4();
 		const startTime = new Date().toISOString();
 		
-		// 更新该流的直播状态
+		// 更新该流的直播状�?
 		streamLiveStatuses[stream.id] = {
 			isLive: true,
 			liveId: liveId,
@@ -2985,7 +2988,7 @@ app.post('/api/admin/live/start', (req, res) => {
 			streamName: stream.name
 		};
 		
-		// 更新全局直播状态（当前活跃的流）
+		// 更新全局直播状态（当前活跃的流�?
 		globalLiveStatus.isLive = true;
 		globalLiveStatus.streamUrl = stream.url;
 		globalLiveStatus.streamId = stream.id;
@@ -3005,7 +3008,7 @@ app.post('/api/admin/live/start', (req, res) => {
 			});
 		}
 		
-		// 推送直播开始消息到小程序
+		// 推送直播开始消息到小程�?
 		if (notifyUsers) {
 			broadcast('liveStatus', {
 				isLive: true,
@@ -3015,7 +3018,7 @@ app.post('/api/admin/live/start', (req, res) => {
 			});
 		}
 		
-		console.log(`✅ 直播已开始: ${liveId}, 流地址: ${stream.url}`);
+		console.log(`�?直播已开�? ${liveId}, 流地址: ${stream.url}`);
 		
 		res.json({
 			success: true,
@@ -3026,15 +3029,15 @@ app.post('/api/admin/live/start', (req, res) => {
 				startTime: startTime,
 				notifiedUsers: wsClients.size
 			},
-			message: '直播已开始',
+			message: '直播已开�?,
 			timestamp: Date.now()
 		});
 		
 	} catch (error) {
-		console.error('开始直播失败:', error);
+		console.error('开始直播失�?', error);
 		res.status(500).json({
 			success: false,
-			message: '开始直播失败: ' + error.message
+			message: '开始直播失�? ' + error.message
 		});
 	}
 });
@@ -3078,7 +3081,7 @@ app.post('/api/admin/live/stop', (req, res) => {
 		let duration = 0;
 		let liveId = null;
 		
-		// 如果指定了streamId，停止该流
+		// 如果指定了streamId，停止该�?
 		if (targetStreamId && streamLiveStatuses[targetStreamId]) {
 			const streamStatus = streamLiveStatuses[targetStreamId];
 			if (streamStatus.isLive) {
@@ -3086,18 +3089,18 @@ app.post('/api/admin/live/stop', (req, res) => {
 				duration = Math.floor((Date.now() - startTime.getTime()) / 1000);
 				liveId = streamStatus.liveId;
 				
-				// 更新该流的状态
+				// 更新该流的状�?
 				streamLiveStatuses[targetStreamId].isLive = false;
 				streamLiveStatuses[targetStreamId].stopTime = stopTime;
 			}
 		} else if (globalLiveStatus.isLive) {
-			// 停止全局直播状态
+			// 停止全局直播状�?
 			startTime = new Date(globalLiveStatus.startTime);
 			duration = Math.floor((Date.now() - startTime.getTime()) / 1000);
 			liveId = globalLiveStatus.liveId;
 		}
 		
-		// 如果停止的是当前活跃的流，重置全局状态
+		// 如果停止的是当前活跃的流，重置全局状�?
 		if (targetStreamId === globalLiveStatus.streamId || !targetStreamId) {
 			globalLiveStatus.isLive = false;
 			globalLiveStatus.streamUrl = null;
@@ -3117,15 +3120,11 @@ app.post('/api/admin/live/stop', (req, res) => {
 		
 		// 保存统计数据到数据库
 		if (saveStatistics && duration > 0) {
-			const db = require(path.join(frontendAdminDir, 'db.js'));
-			db.statistics.updateDashboard({
-				totalVotes: summary.totalVotes,
-				lastLiveTime: stopTime,
-				liveDuration: duration
-			});
+			
+			/* stats update skipped */;
 		}
 		
-		// 推送直播停止消息
+		// 推送直播停止消�?
 		if (notifyUsers) {
 			broadcast('liveStatus', {
 				streamId: targetStreamId,
@@ -3135,7 +3134,7 @@ app.post('/api/admin/live/stop', (req, res) => {
 			});
 		}
 		
-		console.log(`⏹️  直播已停止: ${liveId}`);
+		console.log(`⏹️  直播已停�? ${liveId}`);
 		
 		res.json({
 			success: true,
@@ -3147,7 +3146,7 @@ app.post('/api/admin/live/stop', (req, res) => {
 				summary: summary,
 				notifiedUsers: wsClients.size
 			},
-			message: '直播已停止',
+			message: '直播已停�?,
 			timestamp: Date.now()
 		});
 		
@@ -3168,7 +3167,7 @@ app.post('/api/admin/live/update-votes', (req, res) => {
 		if (!action || !['set', 'add', 'reset'].includes(action)) {
 			return res.status(400).json({
 				success: false,
-				message: 'action参数必须是: set / add / reset'
+				message: 'action参数必须�? set / add / reset'
 			});
 		}
 		
@@ -3201,12 +3200,12 @@ app.post('/api/admin/live/update-votes', (req, res) => {
 			rightPercentage: total > 0 ? Math.round((currentVotes.rightVotes / total) * 100) : 50
 		};
 		
-		// 推送更新
+		// 推送更�?
 		if (notifyUsers) {
 			broadcast('votes-updated', afterUpdate);
 		}
 		
-		console.log(`📊 投票数据已更新 (${action}):`, afterUpdate);
+		console.log(`📊 投票数据已更�?(${action}):`, afterUpdate);
 		
 		res.json({
 			success: true,
@@ -3215,7 +3214,7 @@ app.post('/api/admin/live/update-votes', (req, res) => {
 				afterUpdate,
 				updateTime: new Date().toISOString()
 			},
-			message: '投票数据已更新',
+			message: '投票数据已更�?,
 			timestamp: Date.now()
 		});
 		
@@ -3250,7 +3249,7 @@ app.post('/api/admin/live/reset-votes', (req, res) => {
 			currentVotes.rightVotes = 0;
 		}
 		
-		// 推送更新
+		// 推送更�?
 		if (notifyUsers) {
 			broadcast('votes-updated', {
 				leftVotes: currentVotes.leftVotes,
@@ -3260,7 +3259,7 @@ app.post('/api/admin/live/reset-votes', (req, res) => {
 			});
 		}
 		
-		console.log('🔄 投票数据已重置');
+		console.log('🔄 投票数据已重�?);
 		
 		res.json({
 			success: true,
@@ -3271,7 +3270,7 @@ app.post('/api/admin/live/reset-votes', (req, res) => {
 					rightVotes: currentVotes.rightVotes
 				}
 			},
-			message: '投票数据已重置',
+			message: '投票数据已重�?,
 			timestamp: Date.now()
 		});
 		
@@ -3294,7 +3293,7 @@ app.post('/api/admin/ai/start', (req, res) => {
 		if (globalAIStatus.status === 'running') {
 			return res.status(409).json({
 				success: false,
-				message: 'AI识别已在运行中'
+				message: 'AI识别已在运行�?
 			});
 		}
 		
@@ -3324,7 +3323,7 @@ app.post('/api/admin/ai/start', (req, res) => {
 			});
 		}
 		
-		console.log(`🤖 AI识别已启动: ${globalAIStatus.aiSessionId}`);
+		console.log(`🤖 AI识别已启�? ${globalAIStatus.aiSessionId}`);
 		
 		res.json({
 			success: true,
@@ -3334,7 +3333,7 @@ app.post('/api/admin/ai/start', (req, res) => {
 				startTime: globalAIStatus.startTime,
 				settings: globalAIStatus.settings
 			},
-			message: 'AI识别已启动',
+			message: 'AI识别已启�?,
 			timestamp: Date.now()
 		});
 		
@@ -3355,7 +3354,7 @@ app.post('/api/admin/ai/stop', (req, res) => {
 		if (globalAIStatus.status === 'stopped') {
 			return res.status(400).json({
 				success: false,
-				message: 'AI识别未运行'
+				message: 'AI识别未运�?
 			});
 		}
 		
@@ -3366,7 +3365,7 @@ app.post('/api/admin/ai/stop', (req, res) => {
 		const aiSessionId = globalAIStatus.aiSessionId;
 		const summary = { ...globalAIStatus.statistics };
 		
-		// 重置状态
+		// 重置状�?
 		globalAIStatus.status = 'stopped';
 		globalAIStatus.aiSessionId = null;
 		globalAIStatus.startTime = null;
@@ -3379,7 +3378,7 @@ app.post('/api/admin/ai/stop', (req, res) => {
 			});
 		}
 		
-		console.log(`⏹️  AI识别已停止: ${aiSessionId}`);
+		console.log(`⏹️  AI识别已停�? ${aiSessionId}`);
 		
 		res.json({
 			success: true,
@@ -3390,7 +3389,7 @@ app.post('/api/admin/ai/stop', (req, res) => {
 				duration: duration,
 				summary: summary
 			},
-			message: 'AI识别已停止',
+			message: 'AI识别已停�?,
 			timestamp: Date.now()
 		});
 		
@@ -3411,7 +3410,7 @@ app.post('/api/admin/ai/toggle', (req, res) => {
 		if (!action || !['pause', 'resume'].includes(action)) {
 			return res.status(400).json({
 				success: false,
-				message: 'action参数必须是: pause / resume'
+				message: 'action参数必须�? pause / resume'
 			});
 		}
 		
@@ -3433,7 +3432,7 @@ app.post('/api/admin/ai/toggle', (req, res) => {
 			globalAIStatus.status = 'running';
 		}
 		
-		// 推送状态变更
+		// 推送状态变�?
 		if (notifyUsers) {
 			broadcast('aiStatus', {
 				status: globalAIStatus.status
@@ -3449,15 +3448,15 @@ app.post('/api/admin/ai/toggle', (req, res) => {
 				status: globalAIStatus.status,
 				actionTime: new Date().toISOString()
 			},
-			message: globalAIStatus.status === 'paused' ? 'AI识别已暂停' : 'AI识别已恢复',
+			message: globalAIStatus.status === 'paused' ? 'AI识别已暂�? : 'AI识别已恢�?,
 			timestamp: Date.now()
 		});
 		
 	} catch (error) {
-		console.error('切换AI状态失败:', error);
+		console.error('切换AI状态失�?', error);
 		res.status(500).json({
 			success: false,
-			message: '切换AI状态失败: ' + error.message
+			message: '切换AI状态失�? ' + error.message
 		});
 	}
 });
@@ -3478,23 +3477,23 @@ app.delete('/api/admin/ai/content/:contentId', (req, res) => {
 		// 这里应该从数据库删除AI内容
 		// 暂时模拟删除成功
 		
-		// 推送删除消息
+		// 推送删除消�?
 		if (notifyUsers) {
 			broadcast('aiContentDeleted', {
 				contentId: contentId
 			});
 		}
 		
-		console.log(`🗑️  AI内容已删除: ${contentId}`);
+		console.log(`🗑�? AI内容已删�? ${contentId}`);
 		
 		res.json({
 			success: true,
 			data: {
 				contentId: contentId,
 				deleteTime: new Date().toISOString(),
-				reason: reason || '管理员删除'
+				reason: reason || '管理员删�?
 			},
-			message: '内容已删除',
+			message: '内容已删�?,
 			timestamp: Date.now()
 		});
 		
@@ -3507,14 +3506,14 @@ app.delete('/api/admin/ai/content/:contentId', (req, res) => {
 	}
 });
 
-// 三、数据查询接口
+// 三、数据查询接�?
 
 // 3.1 实时数据概览
 app.get('/api/admin/dashboard', (req, res) => {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		const users = db.users.getAll();
-		const debate = db.debate.get();
+		
+		const users = [] /* use backend API */;
+		const debate = { title: '', leftPosition: '', rightPosition: '' } /* use backend API */;
 		
 		const totalVotes = currentVotes.leftVotes + currentVotes.rightVotes;
 		const leftPercentage = totalVotes > 0 ? Math.round((currentVotes.leftVotes / totalVotes) * 100) : 50;
@@ -3530,9 +3529,9 @@ app.get('/api/admin/dashboard', (req, res) => {
 		// 获取启用的直播流（从数据库查询，即使直播未开始也会返回）
 		let activeStream = null;
 		try {
-			activeStream = db.streams.getActive();
+			activeStream = null /* use backend API */;
 		} catch (error) {
-			console.warn('获取启用直播流失败:', error);
+			console.warn('获取启用直播流失�?', error);
 		}
 		
 		const data = {
@@ -3541,7 +3540,7 @@ app.get('/api/admin/dashboard', (req, res) => {
 			isLive: globalLiveStatus.isLive,
 			liveStreamUrl: globalLiveStatus.streamUrl,
 			streamId: globalLiveStatus.streamId || null, // 当前直播使用的流ID
-			// 添加启用的直播流信息（从数据库查询，方便小程序获取测试流地址）
+			// 添加启用的直播流信息（从数据库查询，方便小程序获取测试流地址�?
 			activeStreamUrl: activeStream ? activeStream.url : null,
 			activeStreamId: activeStream ? activeStream.id : null,
 			activeStreamName: activeStream ? activeStream.name : null,
@@ -3550,8 +3549,8 @@ app.get('/api/admin/dashboard', (req, res) => {
 			rightVotes: currentVotes.rightVotes,
 			leftPercentage: leftPercentage,
 			rightPercentage: rightPercentage,
-			totalComments: 0,  // 可从数据库获取
-			totalLikes: 0,     // 可从数据库获取
+			totalComments: 0,  // 可从数据库获�?
+			totalLikes: 0,     // 可从数据库获�?
 			aiStatus: globalAIStatus.status,
 			debateTopic: {
 				title: debate.title,
@@ -3581,8 +3580,8 @@ app.get('/api/admin/dashboard', (req, res) => {
 // 3.2 用户列表
 app.get('/api/admin/miniprogram/users', (req, res) => {
 	try {
-		const db = require(path.join(frontendAdminDir, 'db.js'));
-		const users = db.users.getAll();
+		
+		const users = [] /* use backend API */;
 		
 		const page = parseInt(req.query.page) || 1;
 		const pageSize = parseInt(req.query.pageSize) || 20;
@@ -3592,7 +3591,7 @@ app.get('/api/admin/miniprogram/users', (req, res) => {
 		// 过滤用户
 		let filteredUsers = users;
 		if (status === 'online') {
-			// 简化处理：假设所有WebSocket连接的用户都是在线
+			// 简化处理：假设所有WebSocket连接的用户都是在�?
 			filteredUsers = users.filter(u => wsClients.size > 0);
 		}
 		
@@ -3620,7 +3619,7 @@ app.get('/api/admin/miniprogram/users', (req, res) => {
 					userId: u.id,
 					nickname: u.nickname,
 					avatar: u.avatar,
-					status: 'online',  // 简化处理
+					status: 'online',  // 简化处�?
 					lastActiveTime: new Date().toISOString(),
 					statistics: u.statistics || {
 						totalVotes: 0,
@@ -3652,7 +3651,7 @@ app.get('/api/admin/votes/statistics', (req, res) => {
 		const leftPercentage = totalVotes > 0 ? Math.round((currentVotes.leftVotes / totalVotes) * 100) : 50;
 		const rightPercentage = totalVotes > 0 ? Math.round((currentVotes.rightVotes / totalVotes) * 100) : 50;
 		
-		// 简化：生成模拟时间轴数据
+		// 简化：生成模拟时间轴数�?
 		const timeline = [];
 		const now = new Date();
 		for (let i = 0; i < 10; i++) {
@@ -3678,7 +3677,7 @@ app.get('/api/admin/votes/statistics', (req, res) => {
 					growthRate: 5.2
 				},
 				timeline: timeline,
-				topVoters: []  // 可从数据库获取
+				topVoters: []  // 可从数据库获�?
 			},
 			timestamp: Date.now()
 		});
@@ -3692,14 +3691,14 @@ app.get('/api/admin/votes/statistics', (req, res) => {
 	}
 });
 
-// 3.4 AI内容列表（已在上面定义，此处删除重复定义）
+// 3.4 AI内容列表（已在上面定义，此处删除重复定义�?
 
-// ==================== 直播流管理接口 ====================
+// ==================== 直播流管理接�?====================
 
 // 获取所有直播流列表
 /**
- * 生成播放地址（playUrls）
- * 根据流类型自动生成 HLS、FLV、RTMP 播放地址
+ * 生成播放地址（playUrls�?
+ * 根据流类型自动生�?HLS、FLV、RTMP 播放地址
  */
 function generatePlayUrls(stream) {
 	const playUrls = {
@@ -3709,17 +3708,17 @@ function generatePlayUrls(stream) {
 	};
 	
 	try {
-		// 获取服务器IP地址（用于生成转换后的播放地址）
+		// 获取服务器IP地址（用于生成转换后的播放地址�?
 		const serverIP = process.env.SERVER_IP || '192.168.31.249';
 		const hlsServerPort = process.env.HLS_SERVER_PORT || '8086';
 		const rtmpServerPort = process.env.RTMP_SERVER_PORT || '1935';
 		
-		// 从原URL中提取流名称（用于RTMP转HLS）
+		// 从原URL中提取流名称（用于RTMP转HLS�?
 		const getStreamName = (url) => {
 			try {
 				const urlObj = new URL(url);
 				const path = urlObj.pathname;
-				// 提取路径的最后一部分作为流名称
+				// 提取路径的最后一部分作为流名�?
 				// 例如: rtmp://localhost/live/stream1 -> stream1
 				const parts = path.split('/').filter(p => p);
 				return parts[parts.length - 1] || 'stream';
@@ -3743,14 +3742,14 @@ function generatePlayUrls(stream) {
 			case 'rtmp':
 				// RTMP流需要转换为HLS
 				const streamName = getStreamName(stream.url);
-				// 生成HLS播放地址（通过流媒体服务器转换）
+				// 生成HLS播放地址（通过流媒体服务器转换�?
 				playUrls.hls = `http://${serverIP}:${hlsServerPort}/live/${streamName}.m3u8`;
 				playUrls.flv = `http://${serverIP}:${hlsServerPort}/live/${streamName}.flv`;
 				playUrls.rtmp = stream.url.replace('localhost', serverIP).replace(/^rtmp:\/\//, `rtmp://${serverIP}:${rtmpServerPort}/`);
 				break;
 				
 			case 'flv':
-				// FLV流
+				// FLV�?
 				playUrls.flv = stream.url;
 				// 尝试从FLV地址生成HLS地址
 				if (stream.url.includes('.flv')) {
@@ -3781,18 +3780,18 @@ function generatePlayUrls(stream) {
 
 app.get('/api/admin/streams', (req, res) => {
 	try {
-		const streams = db.streams.getAll();
+		const streams = [] /* use backend API */;
 		
 		// 为每个流添加直播状态和播放地址
 		const streamsWithStatus = streams.map(stream => {
 			const status = streamLiveStatuses[stream.id] || { isLive: false };
 			
-			// 生成播放地址（playUrls）
+			// 生成播放地址（playUrls�?
 			const playUrls = generatePlayUrls(stream);
 			
 			return {
 				...stream,
-				// ✅ 新增：播放地址字段
+				// �?新增：播放地址字段
 				playUrls: playUrls,
 				liveStatus: {
 					isLive: status.isLive || false,
@@ -3814,15 +3813,15 @@ app.get('/api/admin/streams', (req, res) => {
 		});
 		
 	} catch (error) {
-		console.error('获取直播流列表失败:', error);
+		console.error('获取直播流列表失�?', error);
 		res.status(500).json({
 			success: false,
-			message: '获取直播流列表失败: ' + error.message
+			message: '获取直播流列表失�? ' + error.message
 		});
 	}
 });
 
-// 添加新的直播流
+// 添加新的直播�?
 app.post('/api/admin/streams', (req, res) => {
 	try {
 		const { name, url, type, description, enabled } = req.body;
@@ -3849,7 +3848,7 @@ app.post('/api/admin/streams', (req, res) => {
 		if (!['hls', 'rtmp', 'flv'].includes(type)) {
 			return res.status(400).json({
 				success: false,
-				message: 'type 必须是 hls, rtmp 或 flv'
+				message: 'type 必须�?hls, rtmp �?flv'
 			});
 		}
 		
@@ -3868,32 +3867,32 @@ app.post('/api/admin/streams', (req, res) => {
 		// 保存到数据库
 		db.streams.add(newStream);
 		
-		console.log('✅ 新增直播流:', newStream.name, newStream.url);
+		console.log('�?新增直播�?', newStream.name, newStream.url);
 		
 		res.json({
 			success: true,
 			data: newStream,
-			message: '直播流添加成功',
+			message: '直播流添加成�?,
 			timestamp: Date.now()
 		});
 		
 	} catch (error) {
-		console.error('添加直播流失败:', error);
+		console.error('添加直播流失�?', error);
 		res.status(500).json({
 			success: false,
-			message: '添加直播流失败: ' + error.message
+			message: '添加直播流失�? ' + error.message
 		});
 	}
 });
 
-// 更新直播流
+// 更新直播�?
 app.put('/api/admin/streams/:id', (req, res) => {
 	try {
-		const streamId = req.params.id; // 统一使用 :id 参数名
+		const streamId = req.params.id; // 统一使用 :id 参数�?
 		const { name, url, type, description, enabled } = req.body;
 		
-		// 查找流
-		const stream = db.streams.getById(streamId);
+		// 查找�?
+		const stream = null /* use backend API */;
 		if (!stream) {
 			return res.status(404).json({
 				success: false,
@@ -3901,7 +3900,7 @@ app.put('/api/admin/streams/:id', (req, res) => {
 			});
 		}
 		
-		// 验证URL格式（如果有更新）
+		// 验证URL格式（如果有更新�?
 		if (url) {
 			try {
 				new URL(url);
@@ -3913,11 +3912,11 @@ app.put('/api/admin/streams/:id', (req, res) => {
 			}
 		}
 		
-		// 验证type（如果有更新）
+		// 验证type（如果有更新�?
 		if (type && !['hls', 'rtmp', 'flv'].includes(type)) {
 			return res.status(400).json({
 				success: false,
-				message: 'type 必须是 hls, rtmp 或 flv'
+				message: 'type 必须�?hls, rtmp �?flv'
 			});
 		}
 		
@@ -3933,31 +3932,31 @@ app.put('/api/admin/streams/:id', (req, res) => {
 		// 保存更新
 		const updatedStream = db.streams.update(streamId, updates);
 		
-		console.log('✅ 更新直播流:', streamId, updates);
+		console.log('�?更新直播�?', streamId, updates);
 		
 		res.json({
 			success: true,
 			data: updatedStream,
-			message: '直播流更新成功',
+			message: '直播流更新成�?,
 			timestamp: Date.now()
 		});
 		
 	} catch (error) {
-		console.error('更新直播流失败:', error);
+		console.error('更新直播流失�?', error);
 		res.status(500).json({
 			success: false,
-			message: '更新直播流失败: ' + error.message
+			message: '更新直播流失�? ' + error.message
 		});
 	}
 });
 
-// 删除直播流
+// 删除直播�?
 app.delete('/api/admin/streams/:id', (req, res) => {
 	try {
-		const streamId = req.params.id; // 统一使用 :id 参数名
+		const streamId = req.params.id; // 统一使用 :id 参数�?
 		
-		// 查找流
-		const stream = db.streams.getById(streamId);
+		// 查找�?
+		const stream = null /* use backend API */;
 		if (!stream) {
 			return res.status(404).json({
 				success: false,
@@ -3965,7 +3964,7 @@ app.delete('/api/admin/streams/:id', (req, res) => {
 			});
 		}
 		
-		// 检查是否正在使用
+		// 检查是否正在使�?
 		if (globalLiveStatus && globalLiveStatus.streamId === streamId) {
 			return res.status(400).json({
 				success: false,
@@ -3976,7 +3975,7 @@ app.delete('/api/admin/streams/:id', (req, res) => {
 		// 删除
 		db.streams.delete(streamId);
 		
-		console.log('✅ 删除直播流:', streamId, stream.name);
+		console.log('�?删除直播�?', streamId, stream.name);
 		
 		res.json({
 			success: true,
@@ -3984,41 +3983,44 @@ app.delete('/api/admin/streams/:id', (req, res) => {
 				id: streamId,
 				name: stream.name
 			},
-			message: '直播流删除成功',
+			message: '直播流删除成�?,
 			timestamp: Date.now()
 		});
 		
 	} catch (error) {
-		console.error('删除直播流失败:', error);
+		console.error('删除直播流失�?', error);
 		res.status(500).json({
 			success: false,
-			message: '删除直播流失败: ' + error.message
+			message: '删除直播流失�? ' + error.message
 		});
 	}
 });
 
-// 启动服务器
+// 启动服务�?
 server.listen(port, '0.0.0.0', () => {
     console.log('');
     printConfig();
     console.log(`辩题: ${debateTopic.title}`);
-    console.log(`状态: ✅ 服务器运行中`);
+    console.log(`状�? �?服务器运行中`);
     if (wss) {
-        console.log(`🌐 WebSocket 服务已启动: ws://localhost:${port}/ws`);
+        console.log(`🌐 WebSocket 服务已启�? ws://localhost:${port}/ws`);
     }
-    console.log('═══════════════════════════════════════');
+    console.log('══════════════════════════════════════�?);
     console.log('');
     
-    // 只在模拟模式下启动模拟数据
+    // 只在模拟模式下启动模拟数�?
     if (currentConfig.mode === 'mock') {
         simulateVoteChanges();
         simulateNewAIContent();
         console.log('🤖 模拟数据生成器已启动');
     }
     
-    // 启动直播计划检查
+    // 启动直播计划检�?
     startScheduleCheck();
-    console.log('⏰ 直播计划定时检查已启动');
+    console.log('�?直播计划定时检查已启动');
 });
 
 module.exports = app;
+
+
+

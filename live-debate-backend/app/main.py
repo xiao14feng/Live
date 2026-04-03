@@ -3,6 +3,7 @@ FastAPI应用主入口
 支持本地开发和Cloudflare Workers部署
 """
 import json
+import os
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -217,7 +218,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=int(os.environ.get("PORT", 8000)),
         reload=True,
         log_level="info",
     )

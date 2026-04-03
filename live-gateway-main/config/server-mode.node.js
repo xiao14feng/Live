@@ -2,7 +2,7 @@
 const USE_MOCK_SERVER = false; // 改为 false 使用真实服务器
 const LOCAL_SERVER_URL = 'http://localhost:8080';
 const REAL_SERVER_URL = 'http://192.168.31.249:8080'; // 中间层服务器地址
-const REAL_SERVER_PORT = 8080; // 中间层服务器端口
+const REAL_SERVER_PORT = process.env.PORT || 8080;
 const REAL_WECHAT_CONFIG = {
     appid: 'wx94289b0d2ca7a802',
     secret: '10409c1193a326a7b328f675b1776195'
