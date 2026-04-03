@@ -9,7 +9,7 @@ const fs       = require('fs');
 
 const { getCurrentServerConfig, printConfig } = require('./config/server-mode.node.js');
 const currentConfig = getCurrentServerConfig();
-const port = currentConfig.port;
+const port = process.env.PORT || currentConfig.port;
 
 // Set backend URL — routes read process.env.BACKEND_BASE_URL with fallback to localhost:8000
 // Override here or via environment variable BACKEND_BASE_URL
