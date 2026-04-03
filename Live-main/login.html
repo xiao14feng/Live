@@ -342,10 +342,19 @@
                             userId = userInfo.id || userInfo.userId || userInfo.openid;
                             console.log('✅ 找到用户:', userInfo);
                         } else {
-                            console.warn('⚠️ 未找到匹配的用户，使用用户名作为ID');
+                            // 用户不存在，拒绝登录
+                            loginError.textContent = '登录失败：用户名或角色不正确';
+                            loginError.style.display = 'block';
+                            loginBtn.classList.remove('loading');
+                            loginBtn.disabled = false;
+                            return;
                         }
                     } catch (error) {
-                        console.warn('⚠️ 查询用户失败，使用用户名作为ID:', error);
+                        loginError.textContent = '登录失败：无法连接服务器，请稍后重试';
+                        loginError.style.display = 'block';
+                        loginBtn.classList.remove('loading');
+                        loginBtn.disabled = false;
+                        return;
                     }
                     
                     const userData = {
