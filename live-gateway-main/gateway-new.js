@@ -25,7 +25,7 @@ const { setupWebSocket, broadcast, wss } = require('./routes/websocket');
 setupWebSocket(server);
 
 // ── Middleware ──
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'], credentials: true }));
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-user-role', 'X-User-Role'], credentials: true }));
 app.use(express.json());
 
 // ── Static files ──

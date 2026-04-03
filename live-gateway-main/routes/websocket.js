@@ -55,7 +55,11 @@ function handleWebSocketMessage(ws, data) {
 
 function setupWebSocket(server) {
     if (!WebSocketServer) return null;
+    // No path filter — Railway's Caddy proxy handles path routing externally
     wss = new WebSocketServer({ server, path: '/ws' });
+    wss.on('headers', (headers) => {
+        headers.push('X-WebSocket-Server: live-debate-gateway');
+    });
 
     wss.on('connection', (ws, req) => {
         console.log('WebSocket client connected:', req.socket.remoteAddress);
