@@ -39,6 +39,9 @@ if (fs.existsSync(frontendAdminDir))  app.use('/admin',   express.static(fronten
 if (fs.existsSync(frontendStaticDir)) app.use('/static',  express.static(frontendStaticDir));
 if (fs.existsSync(frontendRoot))      app.use(express.static(frontendRoot));
 
+// ── Health check ──
+app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
 // ── Routes ──
 const { router: adminStreamsRouter, startScheduleCheck } = require('./routes/admin-streams');
 app.use(adminStreamsRouter);
