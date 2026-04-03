@@ -22,7 +22,7 @@ const USE_MOCK_SERVER = false; // 使用真实服务器
  * 当 USE_MOCK_SERVER = false 时使用
  */
 export const LOCAL_SERVER_URL = 'http://localhost:8080';
-export const MIDDLEWARE_SERVER_URL = 'http://localhost:8080';  // 中间层服务器地址
+export const MIDDLEWARE_SERVER_URL = 'https://determined-ambition-production-a3c3.up.railway.app';  // 生产网关地址
 export const REAL_SERVER_URL = 'http://localhost:8000';  // 真实后端服务器地址
 
 /**
