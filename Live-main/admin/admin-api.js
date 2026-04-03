@@ -8,7 +8,7 @@ const getAPIBase = () => {
 		return window.SERVER_CONFIG.BASE_URL;
 	}
 	// 默认回退到本地网关入口
-	return 'http://localhost:8080';
+	return 'https://determined-ambition-production-a3c3.up.railway.app';
 };
 
 // 📋 当前本地开发口径
