@@ -173,7 +173,12 @@ app.use(express.json());
 
 // ==================== 后台管理路由（必须在代理之前） ====================
 const path = require('path');
-const frontendRoot = path.resolve(__dirname, '..', 'Live-main');
+// 支持本地和Railway两种环境
+// 本地：网关在 live-gateway-main/，前端在 ../Live-main/
+// Railway：根目录设为 live-gateway-main/，前端在 ../Live-main/ 或通过环境变量指定
+const frontendRoot = process.env.FRONTEND_ROOT 
+	? path.resolve(process.env.FRONTEND_ROOT)
+	: path.resolve(__dirname, '..', 'Live-main');
 const frontendAdminDir = path.join(frontendRoot, 'admin');
 const frontendStaticDir = path.join(frontendRoot, 'static');
 

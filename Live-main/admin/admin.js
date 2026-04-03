@@ -3,8 +3,10 @@
 const SERVER_CONFIG = {
 	// 本地开发时统一走网关入口
 	LOCAL_URL: 'http://localhost:8080',
-	// 中间层服务器地址
-	MIDDLEWARE_URL: 'http://localhost:8080',
+	// 中间层服务器地址（部署后改为Railway网关地址）
+	MIDDLEWARE_URL: window.location.hostname === 'localhost' 
+		? 'http://localhost:8080'
+		: 'https://live-gateway-production.up.railway.app',
 	// 后端服务器地址（保留备用）
 	BACKEND_URL: 'http://localhost:8000',
 	// 当前使用的地址（修改这里切换服务器）
