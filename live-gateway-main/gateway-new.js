@@ -51,6 +51,7 @@ app.use(require('./routes/stats'));
 app.use(require('./routes/public'));
 app.use(require('./routes/wechat')(currentConfig));
 app.use(require('./routes/admin-system'));
+app.use(require('./routes/ai-summarize'));
 
 // ── Optional: local db routes ──
 try {

@@ -336,103 +336,11 @@ function initAIEvents() {
 	const startAIBtn = document.getElementById('start-ai-btn');
 	if (startAIBtn) {
 		startAIBtn.addEventListener('click', async () => {
-			// 🔧 修复：将 originalText 定义在 try 块外，确保 finally 块能访问
-			const originalText = startAIBtn.textContent;
-			
-			try {
-				// 🔧 新增：从AI专用的直播流选择器获取streamId（必填）
-				const aiStreamSelect = document.getElementById('ai-stream-select');
-				const streamId = aiStreamSelect?.value?.trim() || null;
-				
-				// 🔧 新增：验证是否选择了直播流
-				if (!streamId) {
-					if (typeof showToast === 'function') {
-						showToast('请先选择要操作的直播流！', 'error');
-					} else {
-						alert('请先选择要操作的直播流！');
-					}
-					// 高亮显示选择框
-					if (aiStreamSelect) {
-						aiStreamSelect.style.border = '2px solid #ff4d4f';
-						setTimeout(() => {
-							aiStreamSelect.style.border = '';
-						}, 2000);
-					}
-					return;
-				}
-				
-				// 获取AI设置（从表单中获取）
-				const settings = {
-					mode: document.getElementById('ai-mode')?.value || 'realtime',
-					interval: parseInt(document.getElementById('ai-interval')?.value) || 5000,
-					sensitivity: document.getElementById('ai-sensitivity')?.value || 'high',
-					minConfidence: parseFloat(document.getElementById('ai-confidence')?.value) || 0.7
-				};
-				
-				console.log('🚀 启动AI识别，直播流:', streamId, '设置:', settings);
-				
-				// 禁用按钮，防止重复点击
-				startAIBtn.disabled = true;
-				startAIBtn.textContent = '启动中...';
-				
-				// 调用AI启动接口（根据接口文档：/api/v1/admin/ai/start）
-				const result = await startAI(settings, streamId, true);
-				
-				// 🔧 兼容两种返回格式：
-				// 1. {success: true, data: {...}}  (接口文档格式)
-				// 2. {aiSessionId: "...", status: "running", ...}  (直接返回数据)
-				const isSuccess = result && (result.success || result.aiSessionId || result.status === 'running');
-				
-				if (isSuccess) {
-					console.log('✅ AI识别启动成功', result);
-					updateAIControlButtons('running');
-					
-					// 🔧 新增：显示运行中的流信息
-					const streamName = aiStreamSelect.options[aiStreamSelect.selectedIndex]?.text || streamId;
-					const streamInfoEl = document.getElementById('ai-current-stream-info');
-					const streamNameEl = document.getElementById('ai-running-stream-name');
-					if (streamInfoEl && streamNameEl) {
-						streamNameEl.textContent = streamName;
-						streamInfoEl.style.display = 'block';
-					}
-					
-					// 显示成功提示
-					if (typeof showToast === 'function') {
-						showToast(`AI识别启动成功！（流：${streamName}）`, 'success');
-					}
-					
-					// 启动成功后，延迟订阅AI内容更新（等待后端ASR服务就绪）
-					setTimeout(() => {
-						if (typeof loadAIContentList === 'function') {
-							console.log('📡 开始订阅AI内容更新...');
-							loadAIContentList(1);
-						}
-						
-						// 设置定时刷新AI内容列表
-						if (window.aiContentRefreshTimer) {
-							clearInterval(window.aiContentRefreshTimer);
-						}
-						window.aiContentRefreshTimer = setInterval(() => {
-							if (typeof loadAIContentList === 'function') {
-								loadAIContentList(1);
-							}
-						}, 5000); // 每5秒刷新一次
-					}, 2000); // 延迟2秒，等待后端ASR服务启动
-				} else {
-					console.error('❌ 启动AI识别失败:', result);
-					if (typeof showToast === 'function') {
-						showToast('启动AI识别失败：' + (result?.message || '未知错误'), 'error');
-					}
-				}
-			} catch (error) {
-				console.error('❌ 启动AI识别失败:', error);
-				if (typeof showToast === 'function') {
-					showToast('启动AI识别失败：' + error.message, 'error');
-				}
-			} finally {
-				// 恢复按钮状态
-				startAIBtn.disabled = false;
-				startAIBtn.textContent = originalText;
+			// 弹出 AI 输入框
+			const modal = document.getElementById('ai-input-modal');
+			if (modal) {
+				modal.style.display = 'flex';
+				document.getElementById('ai-input-text').focus();
 			}
 		});
 	}

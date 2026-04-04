@@ -886,6 +886,19 @@
 						<img src="/static/iconfont/gongjigongju.png" class="icon-img" alt="">
 						AI 识别控制
 					</h3>
+
+				<!-- AI 输入弹窗 -->
+				<div id="ai-input-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+					<div style="background:white; border-radius:12px; padding:30px; width:90%; max-width:600px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+						<h3 style="margin:0 0 8px 0; color:#2c3e50;">🤖 AI 辩论内容分析</h3>
+						<p style="margin:0 0 16px 0; color:#6c757d; font-size:14px;">粘贴或输入辩论内容，AI 将自动提取正反方核心观点并推送给前端观众。</p>
+						<textarea id="ai-input-text" placeholder="请输入辩论内容，例如：&#10;正方认为消除痛苦可以让人更专注于积极的事情...&#10;反方认为痛苦是人生成长的必要经历..." style="width:100%; height:200px; padding:12px; border:1px solid #dee2e6; border-radius:8px; font-size:14px; resize:vertical; box-sizing:border-box; font-family:inherit;"></textarea>
+						<div style="display:flex; gap:10px; margin-top:16px; justify-content:flex-end;">
+							<button onclick="document.getElementById('ai-input-modal').style.display='none'" style="padding:10px 20px; border:1px solid #dee2e6; background:white; border-radius:6px; cursor:pointer; font-size:14px;">取消</button>
+							<button id="ai-submit-btn" onclick="submitAIText()" style="padding:10px 24px; background:#27ae60; color:white; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:500;">✨ 开始分析</button>
+						</div>
+					</div>
+				</div>
 					
 					<!-- 🔧 新增：直播流选择器 -->
 					<div style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db; border: 1px solid #bee5eb;">
@@ -1226,6 +1239,47 @@
 			initJudgesManagement();
 			initDebateFlowEvents();
 		});
+	</script>
+
+	<script>
+		// AI 文本输入提交
+		async function submitAIText() {
+			const text = document.getElementById('ai-input-text').value.trim();
+			if (!text) { alert('请输入辩论内容'); return; }
+
+			const btn = document.getElementById('ai-submit-btn');
+			btn.disabled = true;
+			btn.textContent = '分析中...';
+
+			try {
+				const API_BASE = window.SERVER_CONFIG?.BASE_URL || 'https://determined-ambition-production-a3c3.up.railway.app';
+				const res = await fetch(`${API_BASE}/api/admin/ai/summarize`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ text })
+				});
+				const data = await res.json();
+				if (data.success) {
+					document.getElementById('ai-input-modal').style.display = 'none';
+					document.getElementById('ai-input-text').value = '';
+					const left = data.data.left.length, right = data.data.right.length;
+					if (typeof showToast === 'function') {
+						showToast(`✅ AI分析完成！正方 ${left} 条，反方 ${right} 条观点已推送`, 'success');
+					} else {
+						alert(`AI分析完成！正方 ${left} 条，反方 ${right} 条观点已推送给前端`);
+					}
+					// 刷新AI内容列表
+					if (typeof loadAIContentList === 'function') setTimeout(() => loadAIContentList(1), 500);
+				} else {
+					alert('分析失败：' + (data.message || '未知错误'));
+				}
+			} catch (e) {
+				alert('请求失败：' + e.message);
+			} finally {
+				btn.disabled = false;
+				btn.textContent = '✨ 开始分析';
+			}
+		}
 	</script>
 </body>
 </html>
