@@ -42,9 +42,9 @@ function callAI(messages) {
 }
 
 // POST /api/admin/ai/summarize
-// Body: { text: "辩论内容...", debateId?: string }
+// Body: { text: "辩论内容...", debateId?: string, streamId?: string }
 router.post('/api/admin/ai/summarize', async (req, res) => {
-    const { text, debateId } = req.body;
+    const { text, debateId, streamId } = req.body;
     if (!text || !text.trim()) {
         return res.status(400).json({ success: false, message: 'text is required' });
     }
@@ -79,6 +79,7 @@ ${text}
             const item = {
                 id: uuidv4(),
                 debate_id: did,
+                streamId: streamId || null,
                 text: t,
                 side,
                 timestamp: Date.now(),
