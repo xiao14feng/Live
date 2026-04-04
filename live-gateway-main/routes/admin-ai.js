@@ -10,7 +10,7 @@ function getFilteredContent(query) {
     const page     = parseInt(query.page)     || 1;
     const pageSize = Math.min(parseInt(query.pageSize) || 20, 100);
     let items = [...state.aiDebateContent];
-    if (query.stream_id) items = items.filter(i => !i.streamId || i.streamId === query.stream_id);
+    if (query.stream_id) items = items.filter(i => i.streamId === query.stream_id);
     if (query.startTime) items = items.filter(i => new Date(i.timestamp || i.createdAt || 0) >= new Date(query.startTime));
     if (query.endTime)   items = items.filter(i => new Date(i.timestamp || i.createdAt || 0) <= new Date(query.endTime));
     const total = items.length;
