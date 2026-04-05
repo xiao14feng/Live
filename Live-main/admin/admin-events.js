@@ -1,6 +1,26 @@
 // 后台管理系统事件处理器
 // 本文件包含所有新功能的按钮事件绑定
 
+// ── 辩题检查工具函数 ──
+// 检查直播间是否有辩题，没有则禁用功能区并提示
+async function checkStreamHasDebate(streamId, sectionName) {
+    if (!streamId) return false;
+    try {
+        const API_BASE = window.SERVER_CONFIG?.BASE_URL || 'https://determined-ambition-production-a3c3.up.railway.app';
+        const res = await fetch(`${API_BASE}/api/v1/admin/streams/${streamId}/debate`);
+        const data = await res.json();
+        if (!data.hasDebate) {
+            if (typeof showToast === 'function') {
+                showToast(`该直播间尚未设置辩题，请先在"直播流管理"中为该直播间创建辩题后再使用${sectionName}功能`, 'warning');
+            }
+            return false;
+        }
+        return true;
+    } catch (e) {
+        return true; // 网络错误时不阻止操作
+    }
+}
+
 // 页面加载完成后绑定事件
 document.addEventListener('DOMContentLoaded', () => {
 	console.log('🎯 初始化后台管理系统事件处理器...');
@@ -44,6 +64,8 @@ function initVotesEvents() {
 		streamSelect.addEventListener('change', async (e) => {
 			const streamId = e.target.value;
 			if (streamId) {
+				const hasDebate = await checkStreamHasDebate(streamId, '票数管理');
+				if (!hasDebate) { e.target.value = ''; clearVotesDisplay(); hideVotesStreamInfo(); return; }
 				await loadVotesByStream(streamId);
 			} else {
 				// 清空显示
@@ -312,7 +334,9 @@ function initAIEvents() {
 		aiStreamSelect.addEventListener('change', async (e) => {
 			const streamId = e.target.value;
 			if (streamId) {
-				// 🔧 新增：查询该流的 AI 状态并更新按钮
+				const hasDebate = await checkStreamHasDebate(streamId, 'AI识别');
+				if (!hasDebate) { e.target.value = ''; return; }
+				// 🔧 修复：将 originalText 定义在 try 块外，确保 finally 块能访问
 				console.log(`🔄 切换到流 ${streamId}，查询 AI 状态...`);
 				await updateAIStatusForStream(streamId);
 				
@@ -1442,6 +1466,8 @@ function initDebateFlowEvents() {
 		streamSelect.addEventListener('change', async (e) => {
 			const streamId = e.target.value;
 			if (streamId) {
+				const hasDebate = await checkStreamHasDebate(streamId, '辩论流程');
+				if (!hasDebate) { e.target.value = ''; clearDebateFlowDisplay(); return; }
 				await loadDebateFlowByStream(streamId);
 			} else {
 				clearDebateFlowDisplay();

@@ -99,7 +99,23 @@ function handleStreamChange(e) {
 		infoDiv.style.display = 'none';
 	}
 
-	if (streamId) loadJudgesDataForStream(streamId);
+	if (streamId) {
+		// 检查辩题
+		const API_BASE = window.SERVER_CONFIG?.BASE_URL || 'https://determined-ambition-production-a3c3.up.railway.app';
+		fetch(`${API_BASE}/api/v1/admin/streams/${streamId}/debate`)
+			.then(r => r.json())
+			.then(data => {
+				if (!data.hasDebate) {
+					if (typeof showToast === 'function') showToast('该直播间尚未设置辩题，请先在"直播流管理"中创建辩题后再管理评委', 'warning');
+					e.target.value = '';
+					currentStreamId = null;
+					if (infoDiv) infoDiv.style.display = 'none';
+					return;
+				}
+				loadJudgesDataForStream(streamId);
+			})
+			.catch(() => loadJudgesDataForStream(streamId));
+	}
 }
 
 async function loadJudgesDataForStream(streamId) {
