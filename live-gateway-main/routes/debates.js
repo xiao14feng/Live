@@ -13,9 +13,10 @@ try {
     const dbUrl = process.env.DATABASE_URL;
     if (dbUrl) {
         pool = new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
+        // Ensure UTF-8 encoding
+        pool.on('connect', client => client.query("SET client_encoding = 'UTF8'"));
         // Create tables if not exist
-        pool.query(`
-            CREATE TABLE IF NOT EXISTS gw_debates (
+        pool.query(`CREATE TABLE IF NOT EXISTS gw_debates (
                 id TEXT PRIMARY KEY,
                 stream_id TEXT UNIQUE,
                 title TEXT NOT NULL,
