@@ -1459,6 +1459,22 @@
 				
 				// 🔧 新增：加载该流的辩论流程配置
 				await loadDebateFlowConfig(streamId);
+
+				// 加载辩题信息（正反方标签）
+				try {
+					const debateRes = await fetch(`${getAPIBase()}/api/v1/admin/streams/${streamId}/debate`);
+					if (debateRes.ok) {
+						const debateData = await debateRes.json();
+						if (debateData.hasDebate && debateData.data) {
+							const d = debateData.data;
+							if (d.leftPosition)  document.getElementById('header-left-label').textContent  = d.leftPosition;
+							if (d.rightPosition) document.getElementById('header-right-label').textContent = d.rightPosition;
+							// 更新辩题标题（如果有对应元素）
+							const titleEl = document.getElementById('debate-topic-title');
+							if (titleEl && d.title) titleEl.textContent = d.title;
+						}
+					}
+				} catch (e) {}
 			} catch (error) {
 				console.error('加载票数失败:', error);
 			}

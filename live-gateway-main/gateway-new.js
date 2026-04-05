@@ -47,12 +47,12 @@ const { router: adminStreamsRouter, startScheduleCheck } = require('./routes/adm
 app.use(adminStreamsRouter);
 app.use(require('./routes/admin-votes'));
 app.use(require('./routes/admin-ai'));
+app.use(require('./routes/debates').router);  // must be before stats.js (overrides debate-flow routes)
 app.use(require('./routes/stats'));
 app.use(require('./routes/public'));
 app.use(require('./routes/wechat')(currentConfig));
 app.use(require('./routes/admin-system'));
 app.use(require('./routes/ai-summarize'));
-app.use(require('./routes/debates').router);
 
 // ── Optional: local db routes ──
 try {
