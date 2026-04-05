@@ -1310,6 +1310,8 @@
 				if (result.success && result.data?.segments && result.data.segments.length > 0) {
 					DEBATE_SEGMENTS = result.data.segments;
 					console.log('✅ 已加载辩论流程配置:', DEBATE_SEGMENTS);
+					// 始终重新渲染流程预览
+					renderFlowPreview();
 					// 如果计时器未开始，重置到初始状态
 					if (timerState.currentSegmentIndex === -1) {
 						updateSegmentInfo();
@@ -1378,6 +1380,7 @@
 						url.searchParams.set('stream_id', streamId);
 						window.history.pushState({}, '', url);
 						await loadVotes(streamId);
+						await loadDebateFlowConfig(streamId);
 					}
 				});
 			} catch (error) {
