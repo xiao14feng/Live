@@ -43,7 +43,7 @@ async function dbGet(streamId) {
     if (!pool) return memStreamMap[streamId] ? memDebates[memStreamMap[streamId]] : null;
     try {
         const r = await pool.query('SELECT * FROM gw_debates WHERE stream_id = $1', [streamId]);
-        if (!r.rows[0]) return null;
+        if (!r.rows[0]) return memStreamMap[streamId] ? memDebates[memStreamMap[streamId]] : null;
         const row = r.rows[0];
         return {
             id: row.id, streamId: row.stream_id, title: row.title,
@@ -52,14 +52,14 @@ async function dbGet(streamId) {
             flowSegments: row.flow_segments || [],
             createdAt: row.created_at, updatedAt: row.updated_at
         };
-    } catch (e) { console.error('dbGet error:', e.message); return null; }
+    } catch (e) { console.error('dbGet error:', e.message); return memStreamMap[streamId] ? memDebates[memStreamMap[streamId]] : null; }
 }
 
 async function dbGetById(id) {
     if (!pool) return memDebates[id] || null;
     try {
         const r = await pool.query('SELECT * FROM gw_debates WHERE id = $1', [id]);
-        if (!r.rows[0]) return null;
+        if (!r.rows[0]) return memDebates[id] || null;  // fallback to memory
         const row = r.rows[0];
         return {
             id: row.id, streamId: row.stream_id, title: row.title,
@@ -68,26 +68,26 @@ async function dbGetById(id) {
             flowSegments: row.flow_segments || [],
             createdAt: row.created_at, updatedAt: row.updated_at
         };
-    } catch (e) { return null; }
+    } catch (e) { return memDebates[id] || null; }  // fallback to memory on error
 }
 
 async function dbSave(debate) {
-    if (!pool) {
-        memDebates[debate.id] = debate;
-        if (debate.streamId) memStreamMap[debate.streamId] = debate.id;
-        return;
-    }
+    memDebates[debate.id] = debate;  // always update memory
+    if (debate.streamId) memStreamMap[debate.streamId] = debate.id;
+    if (!pool) return;
     try {
-        await pool.query(`
+        const queryPromise = pool.query(`
             INSERT INTO gw_debates (id, stream_id, title, description, left_position, right_position, is_active, flow_segments, updated_at)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
             ON CONFLICT (id) DO UPDATE SET
-                title=$3, description=$4, left_position=$5, right_position=$6,
+                stream_id=$2, title=$3, description=$4, left_position=$5, right_position=$6,
                 is_active=$7, flow_segments=$8, updated_at=NOW()
         `, [debate.id, debate.streamId || null, debate.title, debate.description,
             debate.leftPosition, debate.rightPosition, debate.isActive,
             JSON.stringify(debate.flowSegments || [])]);
-    } catch (e) { console.error('dbSave error:', e.message); }
+        // 5s timeout — don't block if DB is unreachable
+        await Promise.race([queryPromise, new Promise((_, rej) => setTimeout(() => rej(new Error('DB timeout')), 5000))]);
+    } catch (e) { console.error('dbSave error (non-fatal):', e.message); }
 }
 
 async function dbUpdateFlow(streamId, segments) {
@@ -153,6 +153,12 @@ router.put('/api/v1/admin/streams/:streamId/debate', async (req, res) => {
         if (!debate) return res.status(404).json({ success: false, message: 'Debate not found' });
 
         debate.streamId = streamId;
+        // Clear any existing debate for this stream first
+        if (pool) {
+            try {
+                await pool.query('UPDATE gw_debates SET stream_id=NULL WHERE stream_id=$1 AND id!=$2', [streamId, debate_id]);
+            } catch (e) { /* non-critical, continue */ }
+        }
         await dbSave(debate);
 
         // Update backend stream's debateId
