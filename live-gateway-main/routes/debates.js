@@ -49,7 +49,9 @@ async function dbGet(streamId) {
             id: row.id, streamId: row.stream_id, title: row.title,
             description: row.description, leftPosition: row.left_position,
             rightPosition: row.right_position, isActive: row.is_active,
-            flowSegments: row.flow_segments || [],
+            flowSegments: Array.isArray(row.flow_segments) ? row.flow_segments
+                : (typeof row.flow_segments === 'string' && row.flow_segments.trim().startsWith('[')
+                    ? JSON.parse(row.flow_segments) : []),
             createdAt: row.created_at, updatedAt: row.updated_at
         };
     } catch (e) { console.error('dbGet error:', e.message); return memStreamMap[streamId] ? memDebates[memStreamMap[streamId]] : null; }
@@ -65,7 +67,9 @@ async function dbGetById(id) {
             id: row.id, streamId: row.stream_id, title: row.title,
             description: row.description, leftPosition: row.left_position,
             rightPosition: row.right_position, isActive: row.is_active,
-            flowSegments: row.flow_segments || [],
+            flowSegments: Array.isArray(row.flow_segments) ? row.flow_segments
+                : (typeof row.flow_segments === 'string' && row.flow_segments.trim().startsWith('[')
+                    ? JSON.parse(row.flow_segments) : []),
             createdAt: row.created_at, updatedAt: row.updated_at
         };
     } catch (e) { return memDebates[id] || null; }  // fallback to memory on error
