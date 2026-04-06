@@ -87,10 +87,16 @@ class VoteService:
             print(f"[WS] 广播投票更新失败: {e}")
 
     def reset_votes(self, db: Session, stream_id: str = DEFAULT_STREAM_ID) -> dict:
-        """重置投票"""
+        """重置投票 — 清除票数汇总、用户投票记录、评委投票记录"""
+        from ..models.vote import VoteRecord, JudgeVote
+        # Clear aggregate
         agg = self.get_aggregate(db, stream_id)
         agg.left_votes = 0
         agg.right_votes = 0
+        # Clear user vote records for this stream
+        db.query(VoteRecord).filter(VoteRecord.stream_id == stream_id).delete()
+        # Clear judge vote records for this stream
+        db.query(JudgeVote).filter(JudgeVote.stream_id == stream_id).delete()
         db.commit()
         db.refresh(agg)
         result = agg.to_dict()
