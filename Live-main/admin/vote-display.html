@@ -1124,7 +1124,11 @@
 		// 渲染流程预览
 		function renderFlowPreview() {
 			const container = document.getElementById('debate-flow-preview');
-			if (!container || DEBATE_SEGMENTS.length === 0) return;
+			if (!container) return;
+			if (DEBATE_SEGMENTS.length === 0) {
+				container.innerHTML = '';
+				return;
+			}
 			const sideColors = { left: '#e74c3c', right: '#3498db', both: '#8e44ad' };
 			const sideLabels = { left: '正', right: '反', both: '双' };
 			container.innerHTML = DEBATE_SEGMENTS.map((seg, i) => {
@@ -1363,6 +1367,8 @@
 					currentStreamId = selectedStreamId;
 					await loadVotes(selectedStreamId);
 					await loadDebateFlowConfig(selectedStreamId);
+					// Force re-render after all data loaded
+					updateSegmentInfo();
 				}
 
 				select.addEventListener('change', async (e) => {
