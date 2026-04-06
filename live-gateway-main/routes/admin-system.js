@@ -90,7 +90,7 @@ router.post('/api/admin/live/stop', (req, res) => {
 
 // ── 2. Vote updates ──
 
-router.post('/api/admin/live/update-votes', (req, res) => {
+router.post(['/api/admin/live/update-votes', '/api/v1/admin/live/update-votes'], (req, res) => {
     try {
         const { action, leftVotes, rightVotes, notifyUsers = true } = req.body;
         if (!['set', 'add', 'reset'].includes(action)) return res.status(400).json({ success: false, message: 'action must be set/add/reset' });
@@ -111,7 +111,7 @@ router.post('/api/admin/live/update-votes', (req, res) => {
     }
 });
 
-router.post('/api/admin/live/reset-votes', (req, res) => {
+router.post(['/api/admin/live/reset-votes', '/api/v1/admin/live/reset-votes'], (req, res) => {
     try {
         const { resetTo, saveBackup = true, notifyUsers = true } = req.body;
         const backup = saveBackup ? { backupId: uuidv4(), leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes, timestamp: new Date().toISOString() } : null;
