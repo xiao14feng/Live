@@ -867,15 +867,8 @@
 		let chartShown = false;
 
 		// 辩论流程配置（可动态更新）
-		let DEBATE_SEGMENTS = [
-			{ name: '正方发言', duration: 180, side: 'left' },      // 3分钟
-			{ name: '反方质问', duration: 120, side: 'right' },     // 2分钟
-			{ name: '反方发言', duration: 180, side: 'right' },      // 3分钟
-			{ name: '正方质问', duration: 120, side: 'left' },       // 2分钟
-			{ name: '自由辩论', duration: 300, side: 'both' },      // 5分钟
-			{ name: '正方总结', duration: 120, side: 'left' },      // 2分钟
-			{ name: '反方总结', duration: 120, side: 'right' }      // 2分钟
-		];
+		// Default segments — will be overwritten by loadDebateFlowConfig
+		let DEBATE_SEGMENTS = [];
 
 		// 计时器状态
 		let timerState = {
@@ -1460,9 +1453,6 @@
 					}
 				} catch (e) {}
 				
-				// 🔧 新增：加载该流的辩论流程配置
-				await loadDebateFlowConfig(streamId);
-
 				// 加载辩题信息（正反方标签）
 				try {
 					const debateRes = await fetch(`${getAPIBase()}/api/v1/admin/streams/${streamId}/debate`);
