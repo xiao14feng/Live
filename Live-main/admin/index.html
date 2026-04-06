@@ -1058,26 +1058,7 @@
 
 				<!-- 数据统计页 -->
 				<div id="statistics" class="page">
-					<div class="page-header">
-						<h2>数据统计</h2>
-						<div class="date-filter">
-							<input type="date" id="date-from" class="date-input">
-							<span>至</span>
-							<input type="date" id="date-to" class="date-input">
-							<button class="btn btn-secondary" id="filter-btn">查询</button>
-						</div>
-					</div>
-
-					<div class="stats-cards">
-						<div class="stat-card-large">
-							<h3>投票分析</h3>
-							<canvas id="vote-analysis-chart"></canvas>
-						</div>
-						<div class="stat-card-large">
-							<h3>用户活跃度</h3>
-							<canvas id="user-activity-chart"></canvas>
-						</div>
-					</div>
+					<!-- date-filter and empty chart placeholders removed, dynamic content injected by loadStatistics() -->
 				</div>
 			</div>
 		</main>
