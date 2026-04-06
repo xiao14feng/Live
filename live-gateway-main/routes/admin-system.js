@@ -90,9 +90,9 @@ router.post('/api/admin/live/stop', (req, res) => {
 
 // ── 2. Vote updates ──
 
-router.post(['/api/admin/live/update-votes', '/api/v1/admin/live/update-votes'], (req, res) => {
+router.post(['/api/admin/live/update-votes', '/api/v1/admin/live/update-votes'], async (req, res) => {
     try {
-        const { action, leftVotes, rightVotes, notifyUsers = true } = req.body;
+        const { action, leftVotes, rightVotes, notifyUsers = true, streamId } = req.body;
         if (!['set', 'add', 'reset'].includes(action)) return res.status(400).json({ success: false, message: 'action must be set/add/reset' });
         const before = { leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes };
         switch (action) {
@@ -103,6 +103,36 @@ router.post(['/api/admin/live/update-votes', '/api/v1/admin/live/update-votes'],
         const total = state.currentVotes.leftVotes + state.currentVotes.rightVotes;
         const after = { leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes, leftPercentage: total > 0 ? Math.round((state.currentVotes.leftVotes / total) * 100) : 50, rightPercentage: total > 0 ? Math.round((state.currentVotes.rightVotes / total) * 100) : 50 };
         if (notifyUsers) broadcast('votes-updated', after);
+
+        // Sync to Python backend + clear vote records so users/judges can re-vote
+        const sid = streamId || 'default';
+        try {
+            if (action === 'set' || action === 'reset') {
+                // Set votes in backend
+                await fetch(`${process.env.BACKEND_BASE_URL || 'http://localhost:8000'}/api/admin/votes`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes, stream_id: sid })
+                });
+                // Clear vote records so users/judges can vote again
+                await fetch(`${process.env.BACKEND_BASE_URL || 'http://localhost:8000'}/api/admin/votes/reset`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ streamId: sid, stream_id: sid })
+                });
+                // Re-set to desired values after reset
+                if (action === 'set') {
+                    await fetch(`${process.env.BACKEND_BASE_URL || 'http://localhost:8000'}/api/admin/votes`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes, stream_id: sid })
+                    });
+                }
+            } else if (action === 'add') {
+                await fetch(`${process.env.BACKEND_BASE_URL || 'http://localhost:8000'}/api/admin/votes`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes, stream_id: sid })
+                });
+            }
+        } catch (syncErr) { console.warn('Backend sync failed (non-fatal):', syncErr.message); }
+
         console.log('Votes updated (' + action + '):', after);
         res.json({ success: true, data: { beforeUpdate: before, afterUpdate: after, updateTime: new Date().toISOString() }, message: 'Votes updated', timestamp: Date.now() });
     } catch (error) {
@@ -111,13 +141,29 @@ router.post(['/api/admin/live/update-votes', '/api/v1/admin/live/update-votes'],
     }
 });
 
-router.post(['/api/admin/live/reset-votes', '/api/v1/admin/live/reset-votes'], (req, res) => {
+router.post(['/api/admin/live/reset-votes', '/api/v1/admin/live/reset-votes'], async (req, res) => {
     try {
-        const { resetTo, saveBackup = true, notifyUsers = true } = req.body;
+        const { resetTo, saveBackup = true, notifyUsers = true, streamId } = req.body;
         const backup = saveBackup ? { backupId: uuidv4(), leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes, timestamp: new Date().toISOString() } : null;
         state.currentVotes.leftVotes  = parseInt(resetTo?.leftVotes)  || 0;
         state.currentVotes.rightVotes = parseInt(resetTo?.rightVotes) || 0;
         if (notifyUsers) broadcast('votes-updated', { leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes, leftPercentage: 50, rightPercentage: 50 });
+
+        // Sync to Python backend + clear vote records
+        const sid = streamId || 'default';
+        try {
+            await fetch(`${process.env.BACKEND_BASE_URL || 'http://localhost:8000'}/api/admin/votes/reset`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ streamId: sid, stream_id: sid })
+            });
+            if (state.currentVotes.leftVotes > 0 || state.currentVotes.rightVotes > 0) {
+                await fetch(`${process.env.BACKEND_BASE_URL || 'http://localhost:8000'}/api/admin/votes`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes, stream_id: sid })
+                });
+            }
+        } catch (syncErr) { console.warn('Backend sync failed (non-fatal):', syncErr.message); }
+
         console.log('Votes reset');
         res.json({ success: true, data: { backup, currentVotes: { leftVotes: state.currentVotes.leftVotes, rightVotes: state.currentVotes.rightVotes } }, message: 'Votes reset', timestamp: Date.now() });
     } catch (error) {

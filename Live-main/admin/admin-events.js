@@ -312,6 +312,12 @@ function updateVotesDisplay(data) {
 		const rightPct = data.rightPercentage || (total > 0 ? Math.round((data.rightVotes / total) * 100) : 50);
 		percentageEl.textContent = `正方: ${leftPct}% | 反方: ${rightPct}%`;
 	}
+
+	// 把当前票数同步到设置/增加面板的输入框，避免切换 tab 后显示旧值
+	const setLeft = document.getElementById('set-left-votes');
+	const setRight = document.getElementById('set-right-votes');
+	if (setLeft && !setLeft.value) setLeft.placeholder = data.leftVotes || 0;
+	if (setRight && !setRight.value) setRight.placeholder = data.rightVotes || 0;
 }
 
 // ==================== AI控制事件 ====================
