@@ -910,6 +910,9 @@ async function loadDashboard() {
 		if (data.streamId && typeof initViewersCount === 'function') {
 			await initViewersCount(data.streamId);
 		}
+
+		// 初始化实时投票趋势图
+		updateVotesChart({ leftVotes: data.leftVotes || 0, rightVotes: data.rightVotes || 0 });
 	} catch (error) {
 		console.error('加载概览数据失败:', error);
 	}
