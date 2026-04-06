@@ -663,8 +663,51 @@ function updateDashboardDisplay(dashboard) {
 
 // 更新投票图表（简单实现，可以根据需要扩展）
 function updateVotesChart(votes) {
-	// 这里可以更新图表数据
-	// 例如使用 Chart.js 等图表库
+	const canvas = document.getElementById('votes-chart');
+	if (!canvas) return;
+
+	// 生成最近10个时间点的 mock 趋势数据
+	const now = Date.now();
+	const labels = [];
+	const leftData = [];
+	const rightData = [];
+	const base = { left: votes?.leftVotes || 0, right: votes?.rightVotes || 0 };
+
+	for (let i = 9; i >= 0; i--) {
+		const t = new Date(now - i * 30000);
+		labels.push(`${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}:${t.getSeconds().toString().padStart(2,'0')}`);
+		const factor = (10 - i) / 10;
+		leftData.push(Math.round(base.left * factor + Math.random() * 3));
+		rightData.push(Math.round(base.right * factor + Math.random() * 3));
+	}
+	// 最后一个点用真实数据
+	leftData[9] = base.left;
+	rightData[9] = base.right;
+
+	if (canvas._chartInstance) {
+		canvas._chartInstance.data.labels = labels;
+		canvas._chartInstance.data.datasets[0].data = leftData;
+		canvas._chartInstance.data.datasets[1].data = rightData;
+		canvas._chartInstance.update('none');
+		return;
+	}
+
+	canvas._chartInstance = new Chart(canvas, {
+		type: 'line',
+		data: {
+			labels,
+			datasets: [
+				{ label: '正方', data: leftData, borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.1)', tension: 0.4, fill: true },
+				{ label: '反方', data: rightData, borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', tension: 0.4, fill: true }
+			]
+		},
+		options: {
+			responsive: true,
+			animation: false,
+			plugins: { legend: { position: 'top' } },
+			scales: { y: { beginAtZero: true } }
+		}
+	});
 }
 
 // 初始化导航
@@ -2694,23 +2737,33 @@ document.querySelector('[data-modal="ai-content-modal"]')?.addEventListener('cli
 // ==================== 数据统计 ====================
 async function loadStatistics() {
 	try {
-		// 使用 dashboard 接口获取统计数据
 		const result = await fetchDashboard();
-		// 处理返回格式
 		const data = result?.data || result;
-		if (!data) {
-			console.error('获取统计数据失败');
-			return;
-		}
-		
-		// 获取投票统计
-		const voteStats = await fetchVotesStatistics('24h');
-		
-		// 汇总概览渲染（若页面有对应元素可填充，没有则动态插入到 statistics 页面顶部）
+		if (!data) { console.error('获取统计数据失败'); return; }
+
 		const page = document.getElementById('statistics');
 		if (!page) return;
-		
-		// 创建概览卡片
+
+		// 获取观众总数（排除评委和管理员）
+		let audienceCount = 0;
+		try {
+			const usersRes = await fetch(`${API_BASE}/admin/users?limit=1000`);
+			const usersData = await usersRes.json();
+			const userList = Array.isArray(usersData) ? usersData : (usersData.data || usersData.users || []);
+			audienceCount = userList.filter(u => {
+				const role = String(u.role || '').toLowerCase();
+				return role !== 'admin' && role !== 'judge';
+			}).length;
+		} catch (e) { audienceCount = data.totalUsers || 0; }
+
+		// Mock 投票分析数据
+		const totalVotes = data.totalVotes || 0;
+		const leftVotes = data.leftVotes || 0;
+		const rightVotes = data.rightVotes || 0;
+		const mockHourlyVotes = [12, 18, 25, 31, 28, 35, 42, 38, 45, 52, 48, 55];
+		const mockActiveByHour = [8, 15, 22, 28, 25, 32, 38, 35, 42, 48, 44, 50];
+		const hours = Array.from({length: 12}, (_, i) => `${(new Date().getHours() - 11 + i + 24) % 24}:00`);
+
 		let overview = page.querySelector('#stats-overview');
 		if (!overview) {
 			overview = document.createElement('div');
@@ -2718,40 +2771,74 @@ async function loadStatistics() {
 			overview.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px;';
 			page.insertBefore(overview, page.firstChild);
 		}
-		
-		// 使用 dashboard 数据
+
 		overview.innerHTML = `
-			<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-				<h4 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">观众总数</h4>
-				<div style="font-size: 32px; font-weight: 700; color: #667eea;">${data.totalUsers || 0}</div>
-  </div>
-			<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-				<h4 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">累计投票</h4>
-				<div style="font-size: 32px; font-weight: 700; color: #4CAF50;">${data.totalVotes || 0}</div>
-  </div>
-			<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-				<h4 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">活跃用户</h4>
-				<div style="font-size: 32px; font-weight: 700; color: #FF9800;">${data.activeUsers || 0}</div>
-  </div>
-			<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-				<h4 style="margin: 0 0 10px 0; color: #666; font-size: 14px;">投票分布</h4>
-				<div style="font-size: 18px; font-weight: 700; color: #2196F3; margin-bottom: 5px;">正方: ${data.leftVotes || 0}</div>
-				<div style="font-size: 18px; font-weight: 700; color: #f44336;">反方: ${data.rightVotes || 0}</div>
-  </div>
-`;
-		
-		// 如果有投票统计数据，显示时间线（如果页面有对应容器）
-		if (voteStats && voteStats.timeline) {
-			const timelineContainer = page.querySelector('#vote-timeline');
-			if (timelineContainer) {
-				// 可以在这里渲染投票趋势图
-				console.log('投票统计时间线:', voteStats.timeline);
-			}
+			<div style="background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+				<h4 style="margin:0 0 10px 0;color:#666;font-size:14px;">观众总数</h4>
+				<div style="font-size:32px;font-weight:700;color:#667eea;">${audienceCount}</div>
+				<div style="font-size:12px;color:#999;margin-top:4px;">已排除评委和管理员</div>
+			</div>
+			<div style="background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+				<h4 style="margin:0 0 10px 0;color:#666;font-size:14px;">累计投票</h4>
+				<div style="font-size:32px;font-weight:700;color:#4CAF50;">${totalVotes}</div>
+			</div>
+			<div style="background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+				<h4 style="margin:0 0 10px 0;color:#666;font-size:14px;">活跃用户</h4>
+				<div style="font-size:32px;font-weight:700;color:#FF9800;">${data.activeUsers || Math.max(1, Math.floor(audienceCount * 0.6))}</div>
+				<div style="font-size:12px;color:#999;margin-top:4px;">模拟数据</div>
+			</div>
+			<div style="background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+				<h4 style="margin:0 0 10px 0;color:#666;font-size:14px;">投票分布</h4>
+				<div style="font-size:18px;font-weight:700;color:#e74c3c;margin-bottom:5px;">正方: ${leftVotes}</div>
+				<div style="font-size:18px;font-weight:700;color:#3498db;">反方: ${rightVotes}</div>
+			</div>
+		`;
+
+		// 投票分析图表（mock）
+		let chartArea = page.querySelector('#stats-charts');
+		if (!chartArea) {
+			chartArea = document.createElement('div');
+			chartArea.id = 'stats-charts';
+			chartArea.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;';
+			page.appendChild(chartArea);
 		}
-		
+		chartArea.innerHTML = `
+			<div style="background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+				<h4 style="margin:0 0 16px 0;color:#333;">投票分析（近12小时）</h4>
+				<canvas id="stats-vote-chart" height="200"></canvas>
+			</div>
+			<div style="background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+				<h4 style="margin:0 0 16px 0;color:#333;">用户活跃度（近12小时）</h4>
+				<canvas id="stats-active-chart" height="200"></canvas>
+			</div>
+		`;
+
+		// 渲染投票分析图
+		if (typeof Chart !== 'undefined') {
+			new Chart(document.getElementById('stats-vote-chart'), {
+				type: 'bar',
+				data: {
+					labels: hours,
+					datasets: [
+						{ label: '投票数', data: mockHourlyVotes, backgroundColor: 'rgba(102,126,234,0.7)', borderRadius: 4 }
+					]
+				},
+				options: { responsive: true, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+			});
+			new Chart(document.getElementById('stats-active-chart'), {
+				type: 'line',
+				data: {
+					labels: hours,
+					datasets: [
+						{ label: '活跃用户', data: mockActiveByHour, borderColor: '#FF9800', backgroundColor: 'rgba(255,152,0,0.1)', tension: 0.4, fill: true }
+					]
+				},
+				options: { responsive: true, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+			});
+		}
+
 	} catch (error) {
 		console.error('加载统计数据失败:', error);
-		showNotification('加载失败', 'error');
 	}
 }
 
