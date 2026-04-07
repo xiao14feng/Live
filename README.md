@@ -49,36 +49,137 @@
 
 ```
 /
-├── Live-main/              # 前端（UniApp + 管理后台 HTML）
-│   ├── admin/              # 后台管理页面
-│   ├── pages/              # 小程序页面
-│   ├── config/             # API 地址配置
-│   ├── static-server.js    # Railway 部署入口
+├── Live-main/                    # 前端（UniApp + 管理后台 HTML）
+│   ├── admin/                    # 后台管理页面
+│   │   ├── index.html            # 管理后台主页
+│   │   ├── vote-display.html     # 投票数据大屏
+│   │   ├── test-vote.html        # 投票测试页
+│   │   ├── admin.js              # 管理后台主逻辑
+│   │   ├── admin-api.js          # API 请求封装
+│   │   ├── admin-events.js       # 事件处理
+│   │   ├── judges-management.js  # 评委管理
+│   │   ├── judge-vote.js         # 评委投票
+│   │   ├── stream-management.js  # 直播流管理
+│   │   ├── vote-diagnostic.js    # 投票诊断工具
+│   │   └── styles.css
+│   ├── pages/                    # 小程序页面
+│   ├── config/                   # API 地址与服务模式配置
+│   ├── static-server.js          # Railway 部署入口
 │   └── railway.json
-├── live-gateway-main/      # Node.js 网关
-│   ├── gateway-new.js      # 主入口
-│   ├── routes/             # 模块化路由
-│   │   ├── state.js        # 共享内存状态
-│   │   ├── websocket.js    # WebSocket
-│   │   ├── admin-streams.js
-│   │   ├── admin-votes.js
-│   │   ├── admin-ai.js
-│   │   ├── stats.js
-│   │   ├── public.js
-│   │   ├── wechat.js
-│   │   └── admin-system.js
+├── live-gateway-main/            # Node.js 网关
+│   ├── gateway-new.js            # 主入口
+│   ├── routes/                   # 模块化路由
+│   │   ├── state.js              # 共享内存状态
+│   │   ├── websocket.js          # WebSocket
+│   │   ├── debates.js            # 辩题流程控制
+│   │   ├── admin-streams.js      # 直播流管理 + 定时检查
+│   │   ├── admin-votes.js        # 票数管理
+│   │   ├── admin-ai.js           # AI 内容管理
+│   │   ├── admin-system.js       # 系统管理
+│   │   ├── ai-summarize.js       # AI 总结
+│   │   ├── stats.js              # 统计数据
+│   │   ├── public.js             # 公开接口
+│   │   └── wechat.js             # 微信登录
 │   └── railway.json
-├── live-debate-backend/    # Python FastAPI 后端
+├── live-debate-backend/          # Python FastAPI 后端
 │   ├── app/
-│   │   ├── api/            # 路由（auth, votes, streams, users...）
-│   │   ├── models/         # SQLAlchemy 模型
-│   │   ├── schemas/        # Pydantic 校验
-│   │   ├── services/       # 业务逻辑
-│   │   └── database.py     # DB 连接
+│   │   ├── api/                  # 路由模块
+│   │   │   ├── auth.py           # 认证
+│   │   │   ├── votes.py          # 投票
+│   │   │   ├── streams.py        # 直播流
+│   │   │   ├── users.py          # 用户管理
+│   │   │   ├── debate.py         # 辩题管理
+│   │   │   ├── comments.py       # 评论
+│   │   │   ├── ai_content.py     # AI 内容
+│   │   │   ├── roles.py          # 角色权限
+│   │   │   ├── statistics.py     # 统计数据
+│   │   │   └── websocket.py      # WebSocket
+│   │   ├── models/               # SQLAlchemy 模型
+│   │   ├── schemas/              # Pydantic 校验
+│   │   ├── services/             # 业务逻辑（含微信服务）
+│   │   ├── utils/                # 工具函数（含安全工具）
+│   │   └── database.py           # DB 连接
+│   ├── seed_db.py                # 初始数据写入脚本
 │   ├── requirements.txt
 │   └── railway.json
 └── README.md
 ```
+
+---
+
+## ⚙️ 本地开发启动
+
+### 1. Python 后端
+
+```bash
+cd live-debate-backend
+
+# 创建并激活虚拟环境
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 复制并配置环境变量
+cp .env.example .env
+
+# 启动（开发模式）
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+API 文档：http://localhost:8000/docs
+
+### 2. Node.js 网关
+
+```bash
+cd live-gateway-main
+npm install
+node gateway-new.js
+# 或开发模式（需安装 nodemon）
+npm run dev
+```
+
+默认端口：`8080`，WebSocket：`ws://localhost:8080/ws`
+
+### 3. 前端（H5）
+
+```bash
+cd Live-main
+npm install
+npm run dev:h5
+```
+
+小程序构建：`npm run build:mp-weixin`
+
+---
+
+## 🌐 环境变量
+
+### 后端（`live-debate-backend/.env`）
+
+| 变量名 | 描述 | 默认值 |
+| --- | --- | --- |
+| `ENVIRONMENT` | 运行环境 | `development` |
+| `DEBUG` | 调试模式 | `true` |
+| `WECHAT_APPID` | 微信小程序 AppID | - |
+| `WECHAT_SECRET` | 微信小程序 Secret | - |
+| `WECHAT_USE_MOCK` | 使用微信 Mock 模式 | `true` |
+| `JWT_SECRET` | JWT 密钥 | - |
+| `JWT_EXPIRE_HOURS` | Token 有效期（小时） | `168` |
+| `DATABASE_URL` | 数据库连接 URL | `sqlite:///./live_debate.db` |
+| `CORS_ORIGINS` | 允许的跨域来源 | `["http://localhost:3000"]` |
+
+### 网关（Railway 环境变量）
+
+| 变量名 | 描述 |
+| --- | --- |
+| `PORT` | 监听端口（Railway 自动注入） |
+| `BACKEND_BASE_URL` | Python 后端地址，如 `https://live-production-50f1.up.railway.app` |
+| `FRONTEND_ROOT` | 前端静态文件根目录（可选） |
 
 ---
 
@@ -92,15 +193,19 @@
 | 获取票数 | GET | `/api/votes` | 当前正反方票数 |
 | 用户投票 | POST | `/api/user-vote` | 100票分配制投票 |
 | 获取辩题 | GET | `/api/debate-topic` | 当前辩题信息 |
-| 获取AI内容 | GET | `/api/ai-content` | AI识别的辩论内容 |
-| 添加评论 | POST | `/api/comment` | 对AI内容评论 |
+| 辩题流程控制 | POST | `/api/debate/flow` | 控制辩论阶段推进 |
+| 获取 AI 内容 | GET | `/api/ai-content` | AI 识别的辩论内容 |
+| AI 总结 | POST | `/api/ai-summarize` | 生成辩论总结 |
+| 添加评论 | POST | `/api/comment` | 对 AI 内容评论 |
 | 点赞 | POST | `/api/like` | 内容/评论点赞 |
 | 微信登录 | POST | `/api/wechat-login` | 微信小程序登录 |
 | 直播状态 | GET | `/api/admin/live/status` | 当前直播状态 |
 | 控制直播 | POST | `/api/admin/live/control` | 开始/停止直播 |
-| 直播流列表 | GET | `/api/admin/streams` | 代理到Python后端 |
-| 用户列表 | GET | `/api/admin/users` | 代理到Python后端 |
+| 直播流列表 | GET | `/api/admin/streams` | 代理到 Python 后端 |
+| 用户列表 | GET | `/api/admin/users` | 代理到 Python 后端 |
 | 票数管理 | PUT | `/api/admin/votes` | 管理员修改票数 |
+| AI 内容管理 | GET/POST | `/api/admin/ai-content` | 管理 AI 识别内容 |
+| 统计数据 | GET | `/api/stats` | 投票/用户统计 |
 | WebSocket | WS | `/ws` | 实时数据推送 |
 
 ### 后端接口（`https://live-production-50f1.up.railway.app`）
@@ -108,12 +213,18 @@
 | 功能 | 方法 | 路径 | 描述 |
 | --- | --- | --- | --- |
 | 用户登录 | POST | `/api/auth/login` | JWT 认证 |
+| 微信登录 | POST | `/api/auth/wechat-login` | 微信 code 换 token |
 | 直播流列表 | GET | `/api/admin/streams` | 分页查询 |
 | 创建直播流 | POST | `/api/admin/streams` | 新增直播流 |
 | 用户列表 | GET | `/api/admin/users` | 分页查询 |
 | 提交投票 | POST | `/api/v1/user-vote` | 用户投票记录 |
 | 评委分配 | GET/POST | `/api/v1/admin/judges` | 评委管理 |
 | 投票统计 | GET | `/api/v1/admin/dashboard` | 数据概览 |
+| 辩题管理 | GET/POST | `/api/v1/debate` | 辩题 CRUD |
+| 评论管理 | GET/POST | `/api/v1/comments` | 评论 CRUD |
+| AI 内容 | GET/POST | `/api/v1/ai-content` | AI 识别内容管理 |
+| 角色管理 | GET/POST | `/api/v1/roles` | 用户角色权限 |
+| 统计数据 | GET | `/api/v1/statistics` | 综合统计数据 |
 
 完整接口文档见：https://live-production-50f1.up.railway.app/docs
 
@@ -151,9 +262,10 @@ SQLite 文件在 Railway 每次部署时重置。解决：接入 Railway Postgre
 
 1. Railway 新建 Project，添加三个 GitHub 服务（分别指向 `Live-main`、`live-gateway-main`、`live-debate-backend` 子目录）
 2. 添加 PostgreSQL 数据库服务
-3. Python 后端服务设置环境变量 `DATABASE_URL`
+3. Python 后端服务设置环境变量 `DATABASE_URL`（Railway 自动注入 `${{Postgres.DATABASE_URL}}`）
 4. 网关服务设置环境变量 `BACKEND_BASE_URL`（指向 Python 后端域名）
 5. 各服务 `railway.json` 配置正确的 `startCommand`
+6. 首次部署后端后运行 `python seed_db.py` 写入初始数据
 
 ---
 
